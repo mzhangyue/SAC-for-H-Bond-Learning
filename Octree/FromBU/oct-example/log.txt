@@ -1,0 +1,106 @@
+
+Paremeters:
+    --pdb         examples/1acb_b_rmin.pdb
+    --nofixed
+    --psf         examples/1acb_b_rmin.psf
+    --mol2        examples/1acb_b_rmin.mol2
+    --outn        examples/1acb_b_rmin-outn.pdb
+    --outo        examples/1acb_b_rmin-outo.pdb
+    --prm         params/parm.prm
+    --rtf         params/pdbamino.rtf
+    --aprm        params/atoms.0.0.6.prm.ms.3cap+0.5ace.Hr0rec
+    --iter        100
+    --hbond
+    --hbondcut    3.00 A
+
+pdbFile: examples/1acb_b_rmin.pdb
+pdbFixedFile: (null)
+mol2File: examples/1acb_b_rmin.mol2
+psfFile: examples/1acb_b_rmin.psf
+outnFile: examples/1acb_b_rmin-outn.pdb
+outoFile: examples/1acb_b_rmin-outo.pdb
+prmFile: params/parm.prm
+rtfFile: params/pdbamino.rtf
+aprmFile: params/atoms.0.0.6.prm.ms.3cap+0.5ace.Hr0rec
+maxIter: 100
+noOct: 0
+noNblist: 0
+useVdw: 0useElec: 0
+useHbond: 1
+dcVdw: 12.000000
+dcElec: 15.000000
+dcHbond: 3.000000
+ndc: 1
+aprxVdw: 1.000000
+aprxElec: 1.000000
+Processing params/atoms.0.0.6.prm.ms.3cap+0.5ace.Hr0rec... done
+Processing examples/1acb_b_rmin.pdb... done
+Processing examples/1acb_b_rmin.psf, params/parm.prm and params/pdbamino.rtf... 1.265 sec
+Processing examples/1acb_b_rmin.mol2... done
+Fixing acceptor bases... done
+
+### START: RUN 1 ###
+
+Building nblists... 0.002 sec
+Building octree... 0.000 sec
+
+
+Applying LBFGS with NBLISTS ( initial energy = 1346.141496 kcal/mol )...
+
+*************************************************
+  n = 8385   number of corrections = 5
+       initial values
+ f =  1346.141   gnorm =  1505.099
+*************************************************
+	i	nfn	func	gnorm	steplength
+	 1	 2	 930.410766268181	 1306.627727922987	0.000664408288
+
+done ( time = 0.058 sec, final energy = -235.466117 kcal/mol )
+
+Writing examples/1acb_b_rmin-outn.pdb... done
+
+Applying LBFGS with OCTREES ( initial energy = 1346.141496 kcal/mol )...
+
+*************************************************
+  n = 8385   number of corrections = 5
+       initial values
+ f =  1346.141   gnorm =  1505.099
+*************************************************
+	i	nfn	func	gnorm	steplength
+	 1	 2	 930.410766268181	 1306.627727922987	0.000664408288
+
+done ( time = 0.128 sec, final energy = -235.977981 kcal/mol )
+
+Writing examples/1acb_b_rmin-outo.pdb... done
+
+
+Molecule info:
+	natoms  = 2795
+	nfixed  = 0 ( 0.00 % )
+	nmoving = 2795  ( 100.00 % )
+
+Distance cutoffs:
+	hbond  = 3.00 A
+	nblist = 3.00 A
+
+NBLIST results:
+	construction time = 0.002 sec
+	running time = 0.058 sec
+	size = 113652 bytes ( 110.99 KB, 0.11 MB ), npairs = 8834
+	initial energy = 1346.141496 kcal/mol
+	final energy = -235.466117 kcal/mol
+
+OCTREE results:
+	construction time = 0.000 sec
+	running time = 0.128 sec
+	size = 36952 bytes ( 36.09 KB, 0.04 MB )
+	initial energy = 1346.141496 kcal/mol
+	final energy = -235.977981 kcal/mol
+
+NBLIST vs. OCTREE:
+	construction-time( nblist ) / construction-time( octree ) = 32.89
+	running-time( nblist ) / running-time( octree ) = 0.46
+	size( nblist ) / size( octree ) = 3.08
+
+### END: RUN 1 ###
+

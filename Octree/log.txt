@@ -1,0 +1,33 @@
+Processing /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/params/atoms.0.0.6.prm.ms.3cap+0.5ace.Hr0rec... done
+Processing /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/examples/1acb_b_rmin.pdb... done
+Processing /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/examples/1acb_b_rmin.psf, /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/params/parm.prm and /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/params/pdbamino.rtf... 0.786 sec
+Processing /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/examples/1acb_b_rmin.mol2... done
+Fixing acceptor bases... done
+Building octree... 
+Pointer of atomgroup: 94905244698000
+Building octree... 0.000 sec
+
+
+Applying LBFGS with OCTREES ( initial energy = 1346.141496 kcal/mol )...
+
+*************************************************
+  n = 8385   number of corrections = 5
+       initial values
+ f =  1346.141   gnorm =  1505.099
+*************************************************
+	i	nfn	func	gnorm	steplength
+	 1	 2	 930.410766268181	 1306.627727922987	0.000664408288
+
+done ( time = 0.346 sec, final energy = -235.977981 kcal/mol )
+
+Writing /home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/examples/1acb_b_rmin-outo.pdb... This is the energy [1346.141495785518]
+done
+OCTREE results:
+	construction time = 0.000 sec
+	running time = 0.346 sec
+	size = 36952 bytes ( 36.09 KB, 0.04 MB )
+	initial energy = 1346.141496 kcal/mol
+	final energy = -235.977981 kcal/mol
+
+### END: RUN ###
+
