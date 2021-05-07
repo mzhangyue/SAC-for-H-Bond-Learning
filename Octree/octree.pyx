@@ -133,7 +133,7 @@ cdef class Protein:
         self.neighbor_lists, self.num_neighbor_lists = get_neighbor_lists (self.ag_ptr, self.neighbor_type)
         
         # USED FOR DEBUGGING
-        #hydro_min (self.ag_ptr, self.pdbFile, self.outnFile, self.outoFile, self.maxIter, self.useHbond, self.dcHbond, self.dcVdw, self.dcElec)
+        hydro_min (self.ag_ptr, self.pdbFile, self.outnFile, self.outoFile, self.maxIter, self.useHbond, self.dcHbond, self.dcVdw, self.dcElec)
         #self.validate_neighbors()
         #print("This is the energy", self.energy)
     
