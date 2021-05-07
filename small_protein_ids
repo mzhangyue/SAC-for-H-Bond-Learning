@@ -1,0 +1,58 @@
+Small proteins <=50 residues
+
+These 14 were taken from this paper (https://pubs.acs.org/doi/10.1021/ja502735c)
+
+TC10b, 2JOF
+TC5b, 1L2Y
+BBA, 1FME
+Villin, 2F4K
+WW, 2F21
+NTL9, 2HBA
+BBL, 2WxC
+Protein B, 1PRB
+UVF, 2P6J
+EnHD, 1ENH
+Protein G, 1MIO
+a3D, 2A3D
+lambda-repressor, 1LMB
+
+These 10 were taken from the paper (https://www.biorxiv.org/content/10.1101/2020.03.03.974477v1). 
+5 are alpha and 5 are beta. The paper notes however that it is possible to form 
+the alpha/beta form of each protein given the right conditions
+
+Alpha:
+1CQ0
+1L2Y
+1ROO
+1T5Q
+1V1D
+
+Beta:
+1LFC
+8TFV
+1KGM
+1M4F
+1TV0
+
+These 20 are taken from this paper (https://aip.scitation.org/doi/full/10.1063/1.4936911). These are slightly bigger
+
+2jof
+2f4k
+1ery
+2p6j
+3gb1
+2f21
+1prb
+1bdd
+1gh1
+1fex
+1dv0
+1fme
+1MIO
+2A3D
+1ubq
+1hp8
+2WxC
+2HBA
+1pou
+1lmb

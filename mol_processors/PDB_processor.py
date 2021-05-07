@@ -15,6 +15,7 @@ from modeller import *
 from modeller.automodel import *
 #from MDAnalysis.tests.datafiles import PSF, DCD
 from utils import str_replace, str_insert, sum_seq_in_dict
+from .bat import BAT
 
 
 # Dictionary of converting three letter residues to 1 letter code 
@@ -32,10 +33,18 @@ res_3to1 = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
 def pdb_to_pqr(pdb):  
     return 
 
-# Converts the atomsitic positions to internal coordinates
-# TODO 
-def pdb_to_intcoords():
-    return
+# Converts the atomsitic positions to internal coordinates using mdanalysis
+# In interanl coordinates, each atom is defined by
+# 1. Bond Length (defined by 2 atoms)
+# 2. Bond Angle (defined by 3 atoms)
+# 3. Dihedral Angle (defined by 4 atoms)
+# 
+# Returns a N x 4 numpy matrix representing the internal coordinates 
+def pdb_to_intcoords(psf, pdb):
+    u = mda.Universe(psf, pdb)
+    intern = BAT(selected_residues)
+    intern.run()
+    return intern
 
 # Grabs coordinates from the a trajectory or pdb file
 def get_coords(coord_path, top_path, file_type="dcd", save_pdbs=False, save_np=True, np_file="prot_coords.npy"):
@@ -85,11 +94,12 @@ def pdb_to_graph(pdb, parm, is_pqr=False):
 
 # Downloads a given pdb id from the PDB database to output file name
 # Default output is the current directory
-def download_pdb (pdb_id, output=None):
+def download_pdb (pdb_id, output_dir=None):
     pdb_id = pdb_id.upper() + ".pdb"
     # Default output is current working directory
-    if (output == None):
-        output = pdb_id.lower()
+    if (output_dir == None):
+        output_dir = "./"
+    output = output_dir + pdb_id.lower()
     # if the output file does not exists, download the pdb file
     if not os.path.isfile(output):
         os.system(f"curl -L https://files.rcsb.org/download/{pdb_id}.gz --output {output}.gz")
