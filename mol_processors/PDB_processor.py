@@ -42,7 +42,8 @@ def pdb_to_pqr(pdb):
 # Returns a N x 4 numpy matrix representing the internal coordinates 
 def pdb_to_intcoords(psf, pdb):
     u = mda.Universe(psf, pdb)
-    intern = BAT(selected_residues)
+    protein_residues = u.select_atoms("protein")
+    intern = BAT(protein_residues)
     intern.run()
     return intern
 
@@ -99,11 +100,11 @@ def download_pdb (pdb_id, output_dir=None):
     # Default output is current working directory
     if (output_dir == None):
         output_dir = "./"
-    output = output_dir + pdb_id.lower()
+    output = os.path.join(output_dir, pdb_id.lower())
     # if the output file does not exists, download the pdb file
     if not os.path.isfile(output):
-        os.system(f"curl -L https://files.rcsb.org/download/{pdb_id}.gz --output {output}.gz")
-        os.system (f"gunzip {output}.gz")
+        os.system("curl -L https://files.rcsb.org/download/{}.gz --output {}.gz".format(pdb_id, output))
+        os.system ("gunzip {}.gz".format(output))
     else:
         print ("The file already exists")
     return 
