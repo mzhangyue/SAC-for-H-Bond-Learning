@@ -16,6 +16,7 @@ if __name__ == '__main__':
     psfFile = bytes(path_prefix + "examples/1acb_b_rmin.psf", encoding="ascii")
     outnFile = bytes(path_prefix + "examples/1acb_b_rmin-outn.pdb", encoding="ascii")
     outoFile = bytes(path_prefix + "examples/1acb_b_rmin-outo.pdb", encoding="ascii")
+
     prmFile = bytes(path_prefix + "params/parm_new.prm", encoding="ascii")
     rtfFile = bytes(path_prefix + "params/pdbamino_new.rtf", encoding="ascii")
     aprmFile = bytes(path_prefix + "params/atoms.0.0.6.prm.ms.3cap+0.5ace.Hr0rec", encoding="ascii")
