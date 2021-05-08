@@ -9,6 +9,8 @@ import torch.nn as nn
 import torch.functional as F
 # Protein Analysis Libaries
 import MDAnalysis as mda
+import nglview as nv
+from nglview.datafiles import PDB, XTC
 # Custom Libraries
 from mol_processors.PDB_processor import download_pdb, get_coords, pdb_to_intcoords
 %pylab inline
@@ -35,7 +37,10 @@ intern = pdb_to_intcoords(psf_file, pdb_file)
 print(intern.bat)
 
 # %%
-
+u = mda.Universe(PDB, XTC)
+protein = u.select_atoms('protein')
+w = nv.show_mdanalysis(protein)
+w
 # %%
 plt.plot([0, 1, 2], [0, 1, 4])
 # %%

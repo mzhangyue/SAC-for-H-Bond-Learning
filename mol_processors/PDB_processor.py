@@ -13,6 +13,7 @@ from Bio import SeqIO
 import Bio.SeqUtils as SeqUtils
 from modeller import *
 from modeller.automodel import *
+import nglview as nv
 #from MDAnalysis.tests.datafiles import PSF, DCD
 from utils import str_replace, str_insert, sum_seq_in_dict
 from .bat import BAT
@@ -42,10 +43,20 @@ def pdb_to_pqr(pdb):
 # Returns a N x 4 numpy matrix representing the internal coordinates 
 def pdb_to_intcoords(psf, pdb):
     u = mda.Universe(psf, pdb)
+    # Select all atoms associated with a protein
     protein_residues = u.select_atoms("protein")
     intern = BAT(protein_residues)
     intern.run()
     return intern
+
+# Coords can be a pdb file or traj file (dcd, xtc,...)
+def visualize_protein(psf, coords):
+    u = mda.Universe(psf, coords)
+    # Select all atoms associated with a protein
+    protein_residues = u.select_atoms("protein")
+    w = nv.show_mdanalysis(protein_residues)
+    return w
+    
 
 # Grabs coordinates from the a trajectory or pdb file
 def get_coords(coord_path, top_path, file_type="dcd", save_pdbs=False, save_np=True, np_file="prot_coords.npy"):

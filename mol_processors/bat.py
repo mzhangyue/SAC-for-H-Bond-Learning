@@ -374,7 +374,6 @@ class BAT(AnalysisBase):
         torsions -= shift
         # Wrap torsions to between -np.pi and np.pi
         torsions = ((torsions + np.pi) % (2 * np.pi)) - np.pi
-
         self.bat[self._frame_index, :] = \
             np.concatenate((root_based, bonds, angles, torsions))
 
