@@ -36,7 +36,8 @@ def Missing_Resdue(pdb):
 def Prepared_Pdb(output_dir, pdb, chains):
     pdbpqr(output_dir, pdb, chains)
 
-#Set paths to variables
+
+
 for molecule in small_molecules:
     molecule_path = os.path.join(base_dir, molecule)
     if not os.path.exists(molecule_path):
@@ -63,3 +64,10 @@ for molecule in small_molecules:
 
     #TODO: TEMP FIX (manually moves .psf file into molecule_path)
     os.system("mv {}.psf {}".format(molecule, molecule_path))
+
+    #Input Molecule_pnon.pdb
+    #Output: mol2 file
+    os.system("obabel {} -O {}_pnon.mol2".format(pnon_path, molecule))
+
+    #TODO: TEMP FIX (manually moves .mol2 file into molecule_path)
+    os.system("mv {}_pnon.mol2 {}".format(molecule, molecule_path))
