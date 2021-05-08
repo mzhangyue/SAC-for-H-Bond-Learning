@@ -5,7 +5,7 @@ import os
 small_molecules = ['2JOF']
 #TODO:Make this nicer looking
 base_dir = "/home/jeffreymo572/Mol2_File_Conversion"
-prepare_protein_dir =  "protein_prep/prepare.py")
+prepare_protein_dir =  os.path.join(base_dir, "protein_prep/prepare.py")
 path_to_dihe = os.path.join(base_dir,"psf_creator/create_psf_dihe")
 path_to_rtf = "/home/jeffreymo572/Mol2_File_Conversion/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/params/pdbamino_new.rtf"
 
