@@ -2,11 +2,11 @@ Small proteins <=50 residues
 
 These 14 were taken from this paper (https://pubs.acs.org/doi/10.1021/ja502735c)
 
-TC10b, 2JOF
-TC5b, 1L2Y
-BBA, 1FME
-Villin, 2F4K
-WW, 2F21
+TC10b, 2JOF, ResCount: 20
+TC5b, 1L2Y, ResCount: 20
+BBA, 1FME, ResCount: 28 
+Villin, 2F4K, ResCount: 35
+WW, 2F21, ResCount: 153
 NTL9, 2HBA
 BBL, 2WxC
 Protein B, 1PRB

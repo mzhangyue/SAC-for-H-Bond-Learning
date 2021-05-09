@@ -50,11 +50,11 @@ def pdb_to_intcoords(psf, pdb):
     return intern
 
 # Coords can be a pdb file or traj file (dcd, xtc,...)
-def visualize_protein(psf, coords):
+def visualize_protein(psf, coords, default=None, default_representation=False):
     u = mda.Universe(psf, coords)
     # Select all atoms associated with a protein
     protein_residues = u.select_atoms("protein")
-    w = nv.show_mdanalysis(protein_residues)
+    w = nv.show_mdanalysis(protein_residues, default=default, default_representation=default_representation)
     return w
     
 

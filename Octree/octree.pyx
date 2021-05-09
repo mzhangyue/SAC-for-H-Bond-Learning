@@ -88,7 +88,7 @@ cdef class Protein:
     cdef double aprxVdw
     cdef double aprxElec
 
-    def __init__(self, char *pdbFile, char *psfFile, char *mol2File, char *prmFile, char *rtfFile, char *aprmFile):
+    def __init__(self, char *pdbFile, char *psfFile, char *mol2File, char *prmFile, char *rtfFile, char *aprmFile, char *outnFile, char *outoFile):
         # Set Params
         path_prefix = "/home/conradli/Learning-Viral-Assembly-Pathways-with-RL-/src/Octree/FromBU/oct-example/"
         self.maxIter = 100
@@ -110,8 +110,8 @@ cdef class Protein:
         self.prmFile = prmFile
         self.rtfFile = rtfFile
         self.aprmFile = aprmFile
-        self.outnFile = bytes(path_prefix + "examples/1acb_b_rmin-outn.pdb", encoding="ascii")
-        self.outoFile = bytes(path_prefix + "examples/1acb_b_rmin-outo.pdb", encoding="ascii")
+        self.outnFile = outnFile
+        self.outoFile = outoFile
 
         # Create an atom group from the given inputs
         self.ag_ptr = create_atomgrp (self.pdbFile, NULL, self.psfFile, self.mol2File, self.prmFile, self.rtfFile, self.aprmFile, self.useHbond)
