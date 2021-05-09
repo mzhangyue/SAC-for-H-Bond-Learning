@@ -18,7 +18,7 @@ def download_pdb (pdb, output_dir=None):
     output = os.path.join(output_dir, pdb_id.lower())
     # if the output file does not exists, download the pdb file
     if not os.path.isfile(output):
-        os.system("curl -L https://files.rcsb.org/download/{}.gz --output {}.gz".format(pdb_id, output))
+        os.system("curl -L https://files.rcsb.org/download/{}.gz --output {}.gz".format(pdb_id.upper(), output))
         os.system ("gunzip {}.gz".format(output))
     else:
         print("The file already exists")
