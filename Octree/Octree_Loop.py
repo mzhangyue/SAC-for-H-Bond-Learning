@@ -13,11 +13,12 @@ small_molecules = ['2JOF', '1L2Y', '1FME', '2F4K', '2HBA', '2WxC', '1PRB', '2P6J
 if __name__ == '__main__':
     # File Paths for param and pdb files
     for molecule in small_molecules:
-        path_prefix = os.path.join("/home/jeffreymo572/Mol2_File_Conversion/", molecule.upper())
+        molecule = molecule.upper()
+        path_prefix = os.path.join("/home/jeffreymo572/Mol2_File_Conversion/", molecule)
         pdbFile = bytes(os.path.join(path_prefix, "{}_pnon.pdb".format(molecule.lower())), encoding="ascii")
         pdbFixedFile = bytes(os.path.join(path_prefix, "{}_pnon.pdb".format(molecule.lower())), encoding="ascii")
-        mol2File = bytes(os.path.join(path_prefix, "{}_pnon.mol2".format(molecule.upper())), encoding="ascii")
-        psfFile = bytes(os.path.join(path_prefix, "{}_pnon.psf".format(molecule.upper())), encoding="ascii")
+        mol2File = bytes(os.path.join(path_prefix, "{}_pnon.mol2".format(molecule)), encoding="ascii")
+        psfFile = bytes(os.path.join(path_prefix, "{}_pnon.psf".format(molecule)), encoding="ascii")
         outnFile = bytes(os.path.join(path_prefix, "{}_b_rmin-outn.pdb".format(molecule)), encoding="ascii")
         outoFile = bytes(os.path.join(path_prefix, "{}_b_rmin-outo.pdb".format(molecule)), encoding="ascii")
         #Constants
