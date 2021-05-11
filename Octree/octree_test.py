@@ -14,9 +14,10 @@ if __name__ == '__main__':
         print("Initialization")
         #path_prefix = "/home/conradli/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/"
         dir_prefix = "/home/conradli/SAC-for-H-Bond-Learning/data"
-        file_prefix = "1cq0_pnon"
-        path_prefix = os.path.join(dir_prefix, file_prefix)
+        file_prefix = "1bdd_pnon"
+        path_prefix = os.path.join(dir_prefix, "1BDD/", file_prefix)
         param_prefix = os.path.join(dir_prefix, "params/")
+        print(path_prefix)
         # File Paths for param and pdb files
         pdbFile = bytes(path_prefix + ".pdb", encoding="ascii")
         pdbFixedFile = bytes(path_prefix + "-fixed.pdb", encoding="ascii") # Currently not used

@@ -5,8 +5,10 @@ small_molecules = ['1FME', '2HBA', '2WxC', '1ENH', '1MIO', '2A3D', '1LMB', '1CQ0
 #TODO:Make this nicer looking
 software_dir = "/home/conradli/software"
 data_dir = "/home/conradli/SAC-for-H-Bond-Learning/data"
+# Software paths
 prepare_protein_path =  os.path.join(software_dir, "protein_prep/prepare.py")
 path_to_dihe = os.path.join(software_dir,"create_psf/create_psf_dihe")
+path_to_namd_conversion = os.path.join(software_dir, "charmm2namd.py")
 path_to_rtf = "/home/conradli/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/params/pdbamino_new.rtf"
 missing_residue_molecules = []
 
@@ -64,23 +66,18 @@ for molecule in small_molecules:
     #Output: Molecule_pnon.pdb
     os.system("{} {}".format(prepare_protein_path, path_to_pdb))
     pnon_path =  os.path.join(molecule_path,"{}_pnon.pdb".format(molecule.lower()))
-    print(pnon_path)
     #Input: Molecule_pnon.pdb
     #Output: Molecule_PSF
     psf_output = os.path.join(molecule_path, molecule.lower() + "_pnon.psf")
-    print("{} {} {} {}".format(path_to_dihe, pnon_path, path_to_rtf, psf_output))
     os.system("{} {} {} {}".format(path_to_dihe, pnon_path, path_to_rtf, psf_output))
-
-    #TODO: TEMP FIX (manually moves .psf file into molecule_path)
-    #os.system("mv {} {}".format(psf_output, molecule_path))
 
     #Input Molecule_pnon.pdb
     #Output: mol2 file
     mol2_output = os.path.join(molecule_path, molecule.lower() + "_pnon.mol2")
-    print("obabel {} -O {}".format(pnon_path, mol2_output))
     os.system("obabel {} -O {}".format(pnon_path, mol2_output))
-
-    #TODO: TEMP FIX (manually moves .mol2 file into molecule_path)
-    #os.system("mv {}_pnon.mol2 {}".format(molecule, molecule_path))
+    
+    # Generates NAMD verison of psf file from charmm psf file
+    xplor_output = os.path.join(molecule_path, molecule.lower() + "_pnon_xplor.psf")
+    os.system("python {} {} {} > {}".format(path_to_namd_conversion, psf_output, path_to_rtf, xplor_output))
 
 print(missing_residue_molecules)
