@@ -1,13 +1,13 @@
 import os
 
 
-small_molecules = ['2JOF', '1L2Y', '1FME', '2F4K', '2F21', '2HBA', '2WxC', '1PRB', '2P6J', '1ENH', '1MIO', '2A3D', '1LMB', '1CQ0', '1L2Y', '1ROO', '1T5Q', '1V1D', '1LFC', '8TFV', '1KGM', '1M4F', '1TV0', '2jof', '2f4k', '1ery', '2p6j', '3gb1', '2f21', '1prb', '1bdd', '1gh1', '1fex', '1dv0']
-#small_molecules = ['1PRB']
+small_molecules = ['2JOF', '1L2Y', '1FME', '2F4K', '2HBA', '2WxC', '1PRB', '2P6J', '1ENH', '1MIO', '2A3D', '1LMD', '1CQ0', '1L2Y', '1ROO', '1T5Q', '1V1D', '1LFC', '8TFV', '1KGM', '1M4F', '1TV0', '2jof', '2f4k', '1ery', '2p6j', '3gb1', '2f21', '1prb', '1bdd', '1gh1', '1fex', '1dv0', '1fme', '1MIO', '2A3D', '1ubq', '1hp8', '2WxC', '2HBA', '1pou', '1lmb']
+
 #TODO:Make this nicer looking
 base_dir = "/home/jeffreymo572/Mol2_File_Conversion"
 prepare_protein_dir =  os.path.join(base_dir, "protein_prep/prepare.py")
-path_to_dihe = os.path.join(base_dir,"psf_creator/create_psf_dihe")
-path_to_rtf = "/home/jeffreymo572/Mol2_File_Conversion/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/params/pdbamino_new.rtf"
+path_to_dihe = os.path.join(base_dir,"create_psf/create_psf_dihe")
+path_to_rtf = "/home/jeffreymo572/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/params/pdbamino_new.rtf"
 missing_residue_molecules = []
 
 def download_pdb (pdb, output_dir=None):
@@ -18,7 +18,7 @@ def download_pdb (pdb, output_dir=None):
     output = os.path.join(output_dir, pdb_id.lower())
     # if the output file does not exists, download the pdb file
     if not os.path.isfile(output):
-        os.system("curl -L https://files.rcsb.org/download/{}.gz --output {}.gz".format(pdb_id, output))
+        os.system("curl -L https://files.rcsb.org/download/{}.gz --output {}.gz".format(pdb_id.upper(), output))
         os.system ("gunzip {}.gz".format(output))
     else:
         print("The file already exists")
