@@ -115,7 +115,7 @@ cdef class Protein:
 
         # Create an atom group from the given inputs
         self.ag_ptr = create_atomgrp (self.pdbFile, NULL, self.psfFile, self.mol2File, self.prmFile, self.rtfFile, self.aprmFile, self.useHbond)
-        # Create octree parms
+        # Create octree parms and bulild octree
         self.my_parms = create_par(self.ag_ptr, self.useVdw, self.useElec, self.useHbond, self.dcVdw, self.dcElec, self.dcHbond, self.aprxVdw, self.aprxElec)
        
         # Convert atom group coordinates to an array of doubles
@@ -125,7 +125,7 @@ cdef class Protein:
         
         ag2array(self.atom_coords, self.ag_ptr)
         # Calculate the initial energy and fill neighbor lists
-        #my_en_grad(self.active_atoms_dims, self.atom_coords, self.my_parms, self.energy, NULL)
+        my_en_grad(self.active_atoms_dims, self.atom_coords, self.my_parms, self.energy, NULL)
         # Grab coords as numpy array
         self.cur_coords = ptr_to_nparray_double(self.atom_coords, self.active_atoms_dims)
         #self.update_energy (self.cur_coords)
@@ -133,7 +133,7 @@ cdef class Protein:
         self.neighbor_lists, self.num_neighbor_lists = get_neighbor_lists (self.ag_ptr, self.neighbor_type)
         
         # USED FOR DEBUGGING
-        hydro_min (self.ag_ptr, self.pdbFile, self.outnFile, self.outoFile, self.maxIter, self.useHbond, self.dcHbond, self.dcVdw, self.dcElec)
+        #hydro_min (self.ag_ptr, self.pdbFile, self.outnFile, self.outoFile, self.maxIter, self.useHbond, self.dcHbond, self.dcVdw, self.dcElec)
         #self.validate_neighbors()
         #print("This is the energy", self.energy)
     
@@ -239,7 +239,7 @@ cdef get_distcut_neighbors(atom * a):
         #np_a.free_data = True
         return np_a
 
-''' ############################Utilities############################ '''
+''' ############################Helper Utilities############################ '''
 
 
 # Checks for duplicates in an array

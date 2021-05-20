@@ -7,7 +7,7 @@ read rtf card name ../params/pdbamino_new.rtf
 read param card name ../params/parm_new.prm
 
 ! Read sequence from the PDB coordinate file
-open unit 1 card read name 1bdd.pdb
+open unit 1 card read name ala_dip.pdb
 read sequ pdb unit 1
 
 ! now generate the PSF and also the IC table (SETU keyword)
@@ -34,15 +34,15 @@ hbuild sele all end
 ! write out the protein structure file (psf) and
 ! the coordinate file in pdb and crd format.
 
-write coor pdb name 1bdd_pnon_charmm.pdb
+write coor pdb name ala_dip_charmm.pdb
 * PDB
 *
 
-write psf CARD OLDPSF name 1bdd_pnon_charmm.psf
+write psf CARD OLDPSF name ala_dip_charmm.psf
 * PSF
 *
 
-write coor card name 1bdd_pnon_charmm.crd
+write coor card name ala_dip_charmm.crd
 * Coords
 *
 

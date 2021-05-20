@@ -25,14 +25,6 @@ res_3to1 = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
      'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W', 
      'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
 
-# Converts PDB files to PQR files 
-# Missing residues are added with MODELLER
-# Missing atoms are added with PDB2PQR 3.1
-# Protonation states are assigned with PROPKA3
-# Charges and Atom radii are assigned with the AMBER Forcefield FF19SB
-# TODO STILL HAVE TO IMPLEMENT
-def pdb_to_pqr(pdb):  
-    return 
 
 # Converts the atomsitic positions to internal coordinates using mdanalysis
 # In interanl coordinates, each atom is defined by
@@ -301,6 +293,15 @@ class ChainSelect (Select):
             return 1
         else:          
             return 0
+
+# Converts PDB files to PQR files 
+# Missing residues are added with MODELLER
+# Missing atoms are added with PDB2PQR 3.1
+# Protonation states are assigned with PROPKA3
+# Charges and Atom radii are assigned with the AMBER Forcefield FF19SB
+# TODO STILL HAVE TO IMPLEMENT
+def pdb_to_pqr(pdb):  
+    return 
 
 if __name__ == '__main__':
     file = "/home/conrad/Oct-GP/Learning-Viral-Assembly-Pathways-with-RL-/data/6gyp/6gyp.pdb"
