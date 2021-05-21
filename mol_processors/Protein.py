@@ -32,12 +32,12 @@ class Prot:
         # Backbone atoms
         '''
         # Load in pdb file
-        if pdb_file != None:
+        if pdbFile != None:
             self.pose = pose_from_pdb(pdbFile)
             self.octree_rep = Prot(pdbFile, psfFile, mol2File, prmFile, rtfFile, aprmFile, outnFile, outoFile)
         # Default to alanine dipeptide
-        else:A
-            self.pose = pose_from_sequence("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", auto_termini=True)
+        else:
+            self.pose = pose_from_sequence("AA", auto_termini=True)
         self.num_residues = self.pose.total_residues()
         self.num_atoms = self.pose.total_atoms()
         # Store secondary structure per atomAAAA
@@ -46,8 +46,13 @@ class Prot:
         self.cart_coords = np.zeros((self.num_atoms, 3))
         self.update_cart_coords()
         # Store bonded adjacency list
-        self.adj_list = self.get_bond_adj_list()
+        self.bond_adj_list = self.get_bond_adj_list()
         self.sfxn = get_score_function(True)
+        # Store hbond net adjacency list
+        self.hbond_adj_list = {}
+        # Generates chemical features
+        self.atom_chem_features = self.generate_chemical_features()
+
         
         
     # Coords can be a pdb file or traj file (dcd, xtc,...)
@@ -90,15 +95,17 @@ class Prot:
 
     # The adjacency matrix showing which atoms are bonded to which atoms
     def get_bond_adj_list(self):
-        bond_adj_list = []
+        global_atom_index  = 0
+        bond_adj_list = {}
         # Loop through all residues
         for res_index in range(1, len(self.num_residues + 1)):
             residue = self.pose.residue(res_index)
             num_res_atoms = residue.num_atoms()
             # Loop through all atoms of each residue
-            for atom_index in range(1, len(num_res_atoms)):
-                neighbors = np.array(residue.bonded_neighbor(atom_index))
-                bond_adj_list.append(neighbors)
+            for res_atom_index in range(1, len(num_res_atoms)):
+                neighbors = np.array(residue.bonded_neighbor(res_atom_index))
+                bond_adj_list[global_atom_index] = neighbors
+                global_atom_index += 1
         return bond_adj_list
 
     # Retuns the energy of the current configuration
@@ -146,12 +153,32 @@ class Prot:
 
     # Returns the set of hydrogen bonds using rosetta
     def get_hbonds(self, rosetta=True):
-        self.pose.get_hbonds
+        self.hbond_adj_list = {}
+        # Loop through all residues
+        for res_index in range(1, len(self.num_residues + 1)):
+            residue = self.pose.residue(res_index)
+            num_res_atoms = residue.num_atoms()
+            # Loop through all atoms of each residue
+            for atom_index in range(1, len(num_res_atoms)):
+                residue = None
+        return
+                    
     
     # Generates atom features using Rosetta
-    def generate_atom_features(self):
-        
-        return
+    def generate_chemical_features(self):
+        # Gather atom names
+        # Gather atom partial charges
+        # Gather whether atom is backbone
+        chemical_features = []
+        for res_index in range(1, len(self.num_residues + 1)):
+            residue = self.pose.residue(res_index)
+            num_res_atoms = residue.num_atoms()
+            # Loop through all atoms of each residue
+            for atom_index in range(1, len(num_res_atoms)):
+                charge = residue.atomic_charge(atom_index)
+                atom_name = residue.atom_name(atom_index)
+                chemical_features.append([atom_name, charge])
+        return chemical_features
 
     # Creates a graph for the current molecule
     # The node features are:
@@ -159,6 +186,6 @@ class Prot:
     # 2. X, Y, Z coordinates
     # 3. Partial charge of each atom as determined by CHARMM 
     def get_graph(self):
-        return self., self.adj_list
+        return
 
 

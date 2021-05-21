@@ -153,7 +153,7 @@ cdef class Protein:
         self.neighbor_lists, self.num_neighbor_lists = get_neighbor_lists (self.ag_ptr, self.neighbor_type)
         return self.energy[0], self.neighbor_lists, self.num_neighbor_lists
     
-    # Updates cur_coords. We do this because we have to copy the 
+    # Updates cur_coords. We do this because we have to 
     def update_cur_coords(self):
         self.cur_coords = ptr_to_nparray_double(self.atom_coords, self.active_atoms_dims)
     
@@ -195,7 +195,7 @@ cdef get_atomistic_features(atomgrp * ag_ptr):
 cdef get_neighbor_lists (atomgrp * ag_ptr, int neighbor_type):
     neighbor_lists = [None] * ag_ptr.natoms
     num_neighbors_lists = [None] * ag_ptr.natoms
-    # Our neighborhood is based on the dist cutoff
+    # Our neighborhood is based on the hbond dist cutoff
     if neighbor_type == 1:
         for i in range (ag_ptr.natoms):
             num_neighbors = (&ag_ptr.atoms[i]).num_neighbors
@@ -228,7 +228,8 @@ def check_nblist_doubled(neighbor_lists, doubled=False):
     return True
 
 # Grabs the neighborhood list of atom
-# Returns an empty list in the atom has no neighbors
+# Returns an empty list if the atom has no neighbors
+#TODO there could be a memory leak here
 cdef get_distcut_neighbors(atom * a):
     
     if (a.num_neighbors == 0):
