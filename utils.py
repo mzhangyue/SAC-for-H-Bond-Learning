@@ -7,6 +7,34 @@ from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import math
 
+# Converts "arr" to numpy array and saves it as text
+def write_array(arr, output_file=None):
+    np_array = np.array(arr).round(decimals=3)
+    if output_file == None:
+        output_file = "test.txt"
+    # Add each row to the text file
+    #with open(output_file, "w") as writer:
+    #    writer.truncate(0)
+    #    for row in np_array:
+    #        writer.write(str(row) + "\n")
+    np.savetxt(output_file, np_array, fmt="%.3f")
+    return
+
+# Creates a one hot encoding from an array of objects
+def generate_one_hot_encoding(arr):
+    # Determine number of unique objects
+    np_arr = np.array(arr)
+    unique_objects = np.unique(np_arr)
+    # Create mapping between object and one hot encoding 
+    one_hot_mapping = {}
+    for index, unique_obj in enumerate(unique_objects):
+        one_hot_mapping[unique_obj] = index
+    # Create one enoding of arr
+    one_hot_encoding = np.zeros((len(arr), len(unique_objects)))
+    for index, obj in enumerate(arr):
+        one_hot_index = one_hot_mapping[obj]
+        one_hot_encoding[index, one_hot_index] = 1  
+    return one_hot_encoding
 
 # Converts chain sequences in a dictionary into one sequence for MODELLER
 # Params:

@@ -3,8 +3,8 @@
 
 ! read topology and parameter files
 
-read rtf card name ../params/pdbamino_new.rtf
-read param card name ../params/parm_new.prm
+read rtf card name $CHARMM/toppar/top_all22_prot.inp
+read param card name $CHARMM/toppar/par_all22_prot.inp
 
 ! Read sequence from the PDB coordinate file
 open unit 1 card read name 1bdd.pdb
@@ -27,9 +27,10 @@ close unit 1
 define test select segid a-pro .and. ( .not. hydrogen ) .and. ( .not. init ) show end
 
 ic para
-ic fill preserve
+!ic fill preserve
 ic build
-hbuild sele all end
+!hbuild sele all end
+hbuild
 
 ! write out the protein structure file (psf) and
 ! the coordinate file in pdb and crd format.

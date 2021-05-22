@@ -1,35 +1,44 @@
-# %%
+#%%
 # Imports
 import os
 import sys
-from pympler import asizeof, tracker, refbrowser
-import gc
 # ML Libraries
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.functional as F
-from resource import getrusage, RUSAGE_SELF
 # Protein Analysis Libaries
 import MDAnalysis as mda
+import nglview as nv
+from nglview.datafiles import PDB, XTC
+from pyrosetta import *
+from pyrosetta.toolbox import *
+from pyrosetta.rosetta.core.scoring import ScoreType 
 # Custom Libraries
-from mol_processors.PDB_processor import download_pdb, get_coords, pdb_to_intcoords
+from mol_processors.PDB_processor import download_pdb, get_coords, pdb_to_intcoords, visualize_protein
 from mol_processors.Protein import Prot
 %pylab inline
-tr = tracker.SummaryTracker()
+%load_ext autoreload 
+%autoreload 2
 # %%
+# Initialize Rosetta
+init()
 # Define some constants
-PDB_DIR = "./data/pdbs/"
+PDB_DIR = "./data/1BDD/"
 OCTREE_DIR = "./Octree"
 # Define some parameters
-pdb_id = "1cq0" # The pdb id of the input protein
+pdb_id = "1bdd" # The pdb id of the input protein
 dcd_file = ""
-pdb_file = "data/1cq0_pnon.pdb"
-psf_file = "data/1cq0.psf"
+pdb_init_file = PDB_DIR + "1bdd_pnon.pdb"
+pdb_out_file = PDB_DIR + "1cq0_pnon-outo.pdb"
+psf_file = PDB_DIR + "1cq0_pnon.psf"
 # Set flags
 download_protein = True # Flag to download protein
+test_prot = Prot(pdb_id=pdb_id)
 # %%
+'''
 print("Initialization")
+init()
 #path_prefix = "/home/conradli/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/"
 dir_prefix = "/home/conradli/SAC-for-H-Bond-Learning/data"
 file_prefix = "ala_dip_charmm"
@@ -47,13 +56,14 @@ prmFile = bytes(param_prefix + "parm_new.prm", encoding="ascii")
 rtfFile = bytes(param_prefix + "pdbamino_new.rtf", encoding="ascii")
 aprmFile = bytes(param_prefix + "atoms.0.0.6.prm.ms.3cap+0.5ace.Hr0rec", encoding="ascii")
 prot = Prot(pdbFile, psfFile, mol2File, prmFile, rtfFile, aprmFile, outnFile, outoFile)
-print("After min")
-# %%
+'''
 
 # %%
+#print(test_prot.atom_ids)
+print(test_prot.get_cart_coords())
+print(len(test_prot.cart_coords))
 # %%
 
 # %%
 # Memory statprint("Memory Used: ", getrusage(RUSAGE_SELF).ru_maxrss / 100000.0, "MB")
-tr.print_diff()
 # %%
