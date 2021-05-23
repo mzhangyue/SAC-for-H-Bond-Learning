@@ -55,7 +55,8 @@ class Prot:
         # Store bonded adjacency list
         self.bond_adj_list = self.get_bond_adj_list()
         # Store hbond net adjacency list
-        self.hbond_adj_list = {}
+        self.hbond_set = None
+        #self.get_hbonds()
         # Generates chemical features
         self.atom_chem_features = self.generate_chemical_features()
         # Set the scoring functon
@@ -66,7 +67,10 @@ class Prot:
         self.pose.dump_pdb(output_file)
         return
 
-    # Returns a numpy array of atom ids in order
+    # Returns a numpy array of atom ids in 
+    # Atom ID stores the residue id and atom number: 
+    # 1. atom_id.rsd()
+    # 2. atom_id.atomno()
     def get_atom_ids(self):
         atom_ids = []
         for res_index in range(1, self.num_residues + 1):
@@ -74,7 +78,7 @@ class Prot:
             num_res_atoms = residue.natoms()
             # Loop through all atoms of each residue
             for res_atom_index in range(1, num_res_atoms+1):
-                atom_ids.append(AtomID(res_index, res_atom_index))
+                atom_ids.append(AtomID(res_atom_index, res_index))
         return atom_ids
 
     # Coords can be a pdb file or traj file (dcd, xtc,...)
@@ -202,12 +206,50 @@ class Prot:
 
     ################# HYDROGEN BONDS #################
 
-    # Returns the set of hydrogen bonds using rosetta
-    # TODO
+    # Returns a dictionary mapping from an accceptor id to donor atom id 
+    # used in the hydrogen bonding network
     def get_hbonds(self, rosetta=True):
-        self.hbond_adj_list = {}
-        
-        return
+        hbond_adj_list = {}
+        # Generate the hbonds 
+        self.hbond_set = self.pose.get_hbonds()
+        # Loop through all hbonds 
+        for hbond in self.hbond_set.hbonds():
+            # Grab acceptor atom and residue index
+            acc_res_index = hbond.acc_res()
+            acc_atom_index = hbond.acc_atm()
+            # Grab donor atom and residue index
+            don_res_index = hbond.don_res()
+            # For the donor atom, we want its parent not the actual hydrogen
+            don_atom_index = self.pose.residue(don_res_index).atom_base(hbond.don_hatm())
+            # Make atom id
+            acc_atom_id = AtomID(acc_atom_index, acc_res_index) 
+            don_atom_id = AtomID(don_atom_index, don_res_index) 
+            hbond_adj_list[acc_atom_id] = don_atom_id
+        return hbond_adj_list
+
+    def print_hbond_adj_list(self, hbond_adj_list):
+        for acc_atom_id in hbond_adj_list:
+            don_atom_id = hbond_adj_list[acc_atom_id]
+            # Grab acceptor atom info
+            acc_res_index = acc_atom_id.rsd()
+            acc_atom_index = acc_atom_id.atomno()
+            acc_residue = self.pose.residue(acc_res_index)
+            acc_res_name = acc_residue.name()
+            acc_atom_name = acc_residue.atom_name(acc_atom_index)
+            # Grab donor atom info
+            don_res_index = don_atom_id.rsd()
+            don_atom_index = don_atom_id.atomno()
+            don_residue = self.pose.residue(don_res_index)
+            don_res_name = don_residue.name()
+            don_atom_name = don_residue.atom_name(don_atom_index)
+            print("{} with Atom ID ({},{}) donated to a {} with Atom ID({}, {})".format(acc_atom_name, acc_res_index, acc_atom_index, don_atom_name, don_res_index, don_atom_index))
+
+
+    # Prints the hbond network
+    def print_hbond_network(self):
+        if self.hbond_set == None:
+            raise Exception("You must call get_hbonds to generate the hbond network before printing it")
+        self.hbond_set.show(self.pose)
                     
     ################# ATOMWISE CHEMICAL FEATURES #################
     
