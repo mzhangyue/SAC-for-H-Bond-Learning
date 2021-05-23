@@ -6,18 +6,37 @@ import shutil
 from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import math
+import MDAnalysis as mda
 
-# Converts "arr" to numpy array and saves it as text
-def write_array(arr, output_file=None):
+
+
+# Combine multiple PDBsinto one pdb file
+def combine_pdbs(pdb_files, output_file):
+    with open(output_file, "w") as writer:
+        for pdb_file_name in pdb_files:
+            # Read in pdb file
+            pdb_file = open(pdb_file_name, "r")
+            # Read line by line
+            for line in pdb_file:
+                # Only write the ATOM coordinate lines and END
+                if line.startswith("ATOM") or line.startswith("TER") or line.startswith("END"):
+                    writer.write(line)
+            pdb_file.close()
+    return
+
+# Converts "arr" to numpy array and saves it as text or NPY format
+def write_array(arr, output_file=None, file_type=None):
     np_array = np.array(arr).round(decimals=3)
     if output_file == None:
         output_file = "test.txt"
-    # Add each row to the text file
-    #with open(output_file, "w") as writer:
-    #    writer.truncate(0)
-    #    for row in np_array:
-    #        writer.write(str(row) + "\n")
-    np.savetxt(output_file, np_array, fmt="%.3f")
+    # Save as binary
+    if file_type == "binary":
+        np.save(output_file, np_array)
+    # Save as text
+    elif file_type == None or file_type == 'text':
+        np.savetxt(output_file, np_array, fmt="%.3f")
+    else:
+        raise Exception("file_type must be either 'binary' or 'text'")
     return
 
 # Creates a one hot encoding from an array of objects
