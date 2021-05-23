@@ -53,6 +53,7 @@ class Prot:
         # Default to alanine dipeptide
         else:
             self.pose = pose_from_sequence("AA", auto_termini=True)
+            self.pdb_name = "alanine_dipeptide"
         
         # Store pdb file name and psf file name
         self.pdb_file = pdb_file
@@ -121,7 +122,7 @@ class Prot:
             u = mda.Universe(self.psf_file, coords)
         # Default is to use the cuurent Pose coords
         elif coords == None:
-            u = mda.Universe(self.psf_file, self.cart_coords, format=MemoryReader, order='fac')
+            nv.RosettaStructure(self.pose)
         else:
             raise Exception("coords must be either a string or numpy array")
         protein_residues = u.select_atoms("protein")
@@ -284,7 +285,7 @@ class Prot:
         else:
             return get_score_function(True)
     
-    # Gets the score of the current protein conformation
+    # Gets the score of the current protein conformation (reward)
     def get_current_score(self):
         return self.score_function(self.pose)
         
