@@ -3,8 +3,8 @@
 
 ! read topology and parameter files
 
-read rtf card name $CHARMM/toppar/top_all22_prot.inp
-read param card name $CHARMM/toppar/par_all22_prot.inp
+read rtf card name $CHARMM_HOME/toppar/top_all22_prot.rtf
+read param card name $CHARMM_HOME/toppar/par_all22_prot.prm
 
 ! Read sequence from the PDB coordinate file
 open unit 1 card read name 1bdd.pdb

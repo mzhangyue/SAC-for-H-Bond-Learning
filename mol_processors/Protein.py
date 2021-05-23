@@ -4,6 +4,7 @@ from Octree.octree import Protein
 from pympler import asizeof, tracker, refbrowser
 from memory_profiler import profile
 import MDAnalysis as mda
+from MDAnalysis.coordinates.memory import MemoryReader
 from pyrosetta import *
 from pyrosetta.toolbox import *
 from pyrosetta.rosetta.core.scoring import ScoreType, Ramachandran, ScoringManager
@@ -20,7 +21,7 @@ class Prot:
     # Initializes the Prot Object
     # pdb_file: path to pdb
     # psf_file: path to psf
-    def __init__(self, pdbFile=None, psfFile=None, mol2File=None, prmFile=None, rtfFile=None, aprmFile=None, outnFile=None, outoFile=None, pdb_id=None):
+    def __init__(self, pdb_file=None, psf_file=None, mol2_file=None, prm_file=None, rtf_file=None, aprm_file=None, pdb_id=None):
         '''
         MDANALYSIS WAY
         # Load in pdb and psf
@@ -35,11 +36,16 @@ class Prot:
         # Backbone atoms
         '''
         # Load in pdb file
-        if pdbFile != None:
+        if pdb_file != None:
             print("Loading pdb fie into Rosetta...")
-            self.pose = pose_from_pdb(pdbFile)
-            #self.octree_rep = Protein(pdbFile, psfFile, mol2File, prmFile, rtfFile, aprmFile, outnFile, outoFile)
-            self.pdb_name = pdbFile.split(".pdb")[0]
+            self.pose = pose_from_pdb(pdb_file)
+            self.pdb_name = pdb_file.split("/")[-1].split(".pdb")[0]
+            # if we have the files create an octree
+            if psf_file != None and mol2_file != None and prm_file != None and rtf_file != None and aprm_file != None:
+                outnFile = self.pdb_name + "-outn.pdb"
+                outoFile = self.pdb_name + "-outo.pdb"
+                self.octree_rep = Protein(pdb_file, psf_file, mol2_file, prm_file, rtf_file, aprm_file, outnFile, outoFile)
+        # Grab the pdb id straight from RCSB
         elif pdb_id != None:
             print("Loading pdb id into Rosetta")
             self.pose = pose_from_rcsb(pdb_id)
@@ -48,6 +54,9 @@ class Prot:
         else:
             self.pose = pose_from_sequence("AA", auto_termini=True)
         
+        # Store pdb file name and psf file name
+        self.pdb_file = pdb_file
+        self.psf_file = psf_file
         # Get total atoms and total residues
         self.num_residues = self.pose.total_residue()
         self.num_atoms = self.pose.total_atoms()
@@ -67,6 +76,8 @@ class Prot:
         self.atom_chem_features = self.generate_chemical_features()
         # Set the scoring functon
         self.score_function = get_score_function(True)
+        # Save original pose
+        self.original_pose = self.pose.clone()
 
     ################# INPUT/OUTPUT FUNCTIONS #################
     
@@ -77,6 +88,7 @@ class Prot:
     
     # Writes numpy coords to pdb files
     # Coord_files is a list of coord files of saved npy files
+    # NOT SURE IF THIS ACTUALLY WORKS YET
     def np_coords_to_pdbs(self, coord_files, output_dir, coord_file_type= "npy"):
         # Check for valid file type
         if coord_file_type != "npy" or coord_file_type != "text":
@@ -98,17 +110,29 @@ class Prot:
             self.write_to_pdb(os.path.join(output_dir, output_file_name))
         return 
 
-    # Coords can be a pdb file or traj file (dcd, xtc,...)
-    def visualize_protein(self, default=None, default_representation=False):
-        # Select all atoms associated with a protein
-        #protein_residues = self.prot.select_atoms("protein")
-        #w = nv.show_mdanalysis(protein_residues, default=default, default_representation=default_representation)
+    # Coords can be a pdb file, traj file (dcd, xtc,...), or a numpy array (frame, num_atoms, 3)
+    def visualize_protein(self, coords=None, default=None, default_representation=False):
+        # Load in np array of coords
+        if type(coords).__name__ == "ndarray":
+            u = mda.Universe(self.psf_file, coords, format=MemoryReader, order='fac')
+        # Load in traj or pdb file 
+        elif type(coords).__name__ == "str":
+            # Select all atoms associated with a protein
+            u = mda.Universe(self.psf_file, coords)
+        # Default is to use the cuurent Pose coords
+        elif coords == None:
+            u = mda.Universe(self.psf_file, self.cart_coords, format=MemoryReader, order='fac')
+        else:
+            raise Exception("coords must be either a string or numpy array")
+        protein_residues = u.select_atoms("protein")
+        w = nv.show_mdanalysis(protein_residues, default=default, default_representation=default_representation)
         return 
     
     # Writes the Cartesian coordinates to disk
     def write_cart_coords(self, output_file, file_type=None):
         write_array(output_file, self.cart_coords, file_type)
         return        
+
     ################# ATOM IDS #################
     # Get the number of virtual atoms
     def get_num_virt_atoms(self):
@@ -190,6 +214,7 @@ class Prot:
             bond_adj_list[atom_id] = np.array(neighbor_atom_ids)
         return bond_adj_list
     
+    # Prints the adjacency list
     def print_bond_adj_list(self):
         for atom_id in self.bond_adj_list:
             # Get atom id data
@@ -208,6 +233,7 @@ class Prot:
                 bonded_atom_name = bonded_atom_residue.atom_name(bonded_atom_index)
                 print("{} with Atom ID ({},{}) is bonded to {} with Atom ID({}, {})".format(atom_name, atom_index, atom_res_index, bonded_atom_name, bonded_atom_index, bonded_atom_res_index))
     
+    # Debugging tool that checks to make sure each atom is in each other's bonded list
     def validate_bond_adj_list(self):
         valid = True
         count = 0
@@ -232,6 +258,7 @@ class Prot:
                     if bonded_bonded_atom_id.atomno() == atom_id.atomno() and bonded_bonded_atom_id.rsd() == atom_id.rsd():
                         atom_id_found = True
                         break
+                # Print the atom that was not found in its neighbor's list
                 if not atom_id_found:
                     count += 1
                     atom_res_index = atom_id.rsd()
@@ -410,6 +437,7 @@ class Prot:
         return chemical_features
 
     # Relax the protein
+    # DO NOT USE: for some reason it removes the pose from meory
     def relax_prot(self):
         relax = FastRelax()
         relax.apply(self.pose)
