@@ -1,16 +1,24 @@
 # Imports
+import random
 from utils import write_array
 from Octree.octree import Protein
 from pympler import asizeof, tracker, refbrowser
 from memory_profiler import profile
 import MDAnalysis as mda
 from MDAnalysis.coordinates.memory import MemoryReader
+# Rosetta imports
 from pyrosetta import *
 from pyrosetta.toolbox import *
+from rosetta.core.pack.task import TaskFactory
+from rosetta.core.pack.task import operation
 from pyrosetta.rosetta.core.scoring import ScoreType, Ramachandran, ScoringManager
 from pyrosetta.rosetta.protocols.backbone_moves import RandomizeBBByRamaPrePro
 from pyrosetta.rosetta.protocols.relax import FastRelax
-from .bat import BAT
+import pyrosetta.rosetta.core.pack.rotamer_set as rotamer_set
+from pyrosetta.rosetta.core.pack import create_packer_graph
+from pyrosetta.rosetta.protocols import minimization_packing
+import pyrosetta.rosetta.protocols as protocols
+#from .bat import BAT
 import nglview as nv
 import numpy as np
 
@@ -21,7 +29,7 @@ class Prot:
     # Initializes the Prot Object
     # pdb_file: path to pdb
     # psf_file: path to psf
-    def __init__(self, pdb_file=None, psf_file=None, mol2_file=None, prm_file=None, rtf_file=None, aprm_file=None, pdb_id=None):
+    def __init__(self, pdb_file=None, psf_file=None, mol2_file=None, prm_file=None, rtf_file=None, aprm_file=None, pdb_id=None, rot_lib_type="independent"):
         '''
         MDANALYSIS WAY
         # Load in pdb and psf
@@ -62,6 +70,14 @@ class Prot:
         self.num_residues = self.pose.total_residue()
         self.num_atoms = self.pose.total_atoms()
         self.num_virt_atoms = self.get_num_virt_atoms()
+        self.ind_rot_set = None
+        # Store backbone independent sets if needed
+        if rot_lib_type == "independent":
+            self.setup_ind_rot_set()
+        # Setup rotamer packer task
+        self.rot_set_fact = rotamer_set.RotamerSetFactory()
+        self.pack_task = standard_packer_task(self.pose)
+        self.pack_task.restrict_to_repacking() # Do not allow sequence changes
         # Store atom ids
         self.atom_ids = self.get_atom_ids()
         # Store secondary structure per atom
@@ -77,8 +93,12 @@ class Prot:
         self.atom_chem_features = self.generate_chemical_features()
         # Set the scoring functon
         self.score_function = get_score_function(True)
+        self.score_function.setup_for_packing(self.pose, self.pack_task.repacking_residues(), self.pack_task.designing_residues())
+        # Set up packer graph now that score function is set
+        self.pack_graph = create_packer_graph(self.pose, self.score_function, self.pack_task)
         # Save original pose
         self.original_pose = self.pose.clone()
+        
 
     ################# INPUT/OUTPUT FUNCTIONS #################
     
@@ -132,7 +152,7 @@ class Prot:
     
     # Writes the Cartesian coordinates to disk
     def write_cart_coords(self, output_file, file_type=None):
-        write_array(output_file, self.cart_coords, file_type)
+        write_array(self.cart_coords, output_file, file_type)
         return        
 
     ################# ATOM IDS #################
@@ -285,7 +305,7 @@ class Prot:
             return get_score_function(True)
     
     # Gets the score of the current protein conformation (reward)
-    def get_current_score(self):
+    def get_score(self):
         return self.score_function(self.pose)
         
     ################# BACKBONE DIHEDRALS (PHI, PSI, OMEGA) #################
@@ -307,18 +327,18 @@ class Prot:
     # Given a residue index, change the phi-psi angles of that residue
     # The dim of angle_change and cur_dihedrals are both vectors of length 2 
     # new_dihedrals = cur_dihedrals + angle_change 
-    def set_backbone_dihedrals(self, residue_index, angle_change):
+    def perturb_backbone_dihedrals(self, residue_index, angle_change):
         residue = self.pose.residue(residue_index)
         #cur = [self.pose.phi(residue_index),  self.pose.psi(residue_index)]
         #new_phi_psi = np.append(cur + np.array(angle_change), self.pose.omega(residue_index))
         #residue.mainchain_torsions(Vector1(new_phi_psi))
-        residue.set_phi(self.pose.phi(residue_index) + angle_change[0])
-        residue.set_psi(self.pose.psi(residue_index) + angle_change[1])
+        self.pose.set_phi(self.pose.phi(residue_index) + angle_change[0])
+        self.pose.set_psi(self.pose.psi(residue_index) + angle_change[1])
         return
     
-    # Sample backbone dihedrals for a specific residue from a ramachanndran distribution
-    # biased if there is a proline 
-    def smaple_rama_backbone_dihedrals(self, res_index):
+    # Sample backbone dihedrals from Dunbrack ramachanndran distribution
+    # with bias if there is a proline before a residue 
+    def sample_rama_backbone_dihedrals(self):
         RandomizeBBByRamaPrePro().apply(self.pose)
         return
 
@@ -329,37 +349,101 @@ class Prot:
         return self.pose.chi(angle_index, residue_index)
     
     # Gets all the sidechain angles
-    def get_sidechain_angles(self, residue_index):
-        return np.array(self.pose.chi(residue_index))
+    def get_sidechain_angles(self, res_index):
+        return np.array(self.pose.residue(res_index).chi())
 
     # Sets one of the rotamer angles (i.e. side chain angle) of a specific residues
     # If one of the rotamers is not specified, we assume it remains the same
-    def set_sidechain_angle(self, residue_index, angle_index, new_angle):
-        self.pose.set_chi(angle_index, residue_index, new_angle)
+    def set_sidechain_angle(self, res_index, angle_index, new_angle):
+        self.pose.set_chi(angle_index, res_index, new_angle)
         return
     
-    # Sets all the sidechain angles of a residue
-    def set_sidechain_angles(self, residue_index, angle_change):
-        residue = self.pose.residue(residue_index)
+    # Perturbs all the sidechain angles of a residue by some angle change
+    def perturb_sidechain_angles(self, res_index, angle_change):
+        residue = self.pose.residue(res_index)
         # Store current chi angles
-        cur_chis = []
-        for chi_index in range(1, residue.nchi()):
-            cur_chis.append(self.pose.chi(chi_index, residue_index))
+        cur_chis = residue.chi()
         # Only choose the residue angles that are needed
-        res_angle_change = np.array(angle_change[:residue.nchi()])
-        # Computer and set new chis
+        res_angle_change = angle_change[:residue.nchi()]
+        # Compute and set new chis
         new_chis = np.array(cur_chis) + res_angle_change
-        residue.set_all_chi(Vector1(new_chis))
+        self.set_sidechain_angles(res_index, new_chis)
         return
     
     # Sets all the sidechain angles
-    def set_all_sidechain_angles(self, angle_changes):
+    def set_sidechain_angles(self, res_index, new_chis):
+        np_new_chis = np.array(new_chis)
+        residue = self.pose.residue(res_index)
+        #assert residue.nchi() == len(new_chis)
+        for chi_index in range(1, residue.nchi()+1):
+            self.pose.set_chi(chi_index, res_index, np_new_chis[chi_index-1]) # the -1 is to account for 1-based indexing
         return
-        
-    # Sample rotamers    
-    def sample_rotamers(self):
-        return
+
+    # Setup for the rotamer set
+    # 1. Discrete Backbone Dependent Rotamer Set
+    # 2. Discrete Backbone Independent Rotamer Set
+    # 3. Continuous Backbone Dependent Rotamer Set
+    def setup_dep_rot_set(self, res_index):
+        rot_set = self.rot_set_fact.create_rotamer_set(self.pose)
+        rot_set.set_resid(res_index)
+        rot_set.build_rotamers(self.pose, self.score_function, self.pack_task, self.pack_graph)
+        return rot_set
     
+    # Sample backbone dependent rotamers (Takes a little longer than backbone independent)
+    # Currently we assume that the backbone does not change
+    def sample_bbdep_rotamers(self):
+        # Set each residue's rotamers
+        for res_index in range(1, self.num_residues + 1):
+            # Get the rotamer set for residue
+            rot_set = self.setup_dep_rot_set(res_index)
+            num_rotamers = rot_set.num_rotamers()
+            # Sample random rotamer from rotamer set
+            rand_rot_id = random.randint(1, num_rotamers)
+            rotamers = rot_set.rotamer(rand_rot_id).chi()
+            # Set the rotamer
+            self.set_sidechain_angles(res_index, rotamers)
+        return
+
+    # Sets up the backbone independent rotamer set
+    def setup_ind_rot_set(self):
+        self.ind_rot_set = {}
+        for res_index in range(1, self.num_residues + 1):
+            residue_type = self.pose.residue_type(res_index)
+            residue_type_name = str(residue_type.aa())
+            # Skip if we already added this residue type
+            if self.ind_rot_set.get(residue_type_name) != None:
+                continue
+            res_rotamers = rotamer_set.bb_independent_rotamers(residue_type)
+            # Extract just the chi rotamers from the new residues
+            rotamers = []
+            for res_rot_index in range(1, len(res_rotamers) + 1):
+                rotamers.append(res_rotamers[res_rot_index].chi())
+            self.ind_rot_set[residue_type_name] = rotamers
+
+    # Sample backbone indepedent rotamers    
+    def sample_bbind_rotamers(self):  
+        for res_index in range(1, self.num_residues + 1):
+            residue_type_name = str(self.pose.residue_type(res_index).aa())
+            rot_set = self.ind_rot_set[residue_type_name]
+            # Sample one of the rotamers
+            rand_rot_id = random.randint(0, len(rot_set)-1)
+            self.set_sidechain_angles(res_index, rot_set[rand_rot_id])
+        return
+
+    # Samples rotamers from a unifom distribution
+    def sample_uniform_rotamers(self):
+        for res_index in range(1, self.num_residues + 1):
+            residue = self.pose.residue(res_index)
+            num_rotamers = residue.nchi()
+            # Skip if there are no rotamers
+            if num_rotamers == 0:
+                continue
+            res_rotamers = []
+            # Sample rotamers from a unifrom distribution [-180, 180]
+            for i in range(num_rotamers):
+                res_rotamers.append(random.uniform(-180, 180))
+            self.set_sidechain_angles(res_index, res_rotamers)
+
     ################# HYDROGEN BONDS #################
 
     # Returns a dictionary mapping from an accceptor id to donor atom id 
@@ -435,29 +519,53 @@ class Prot:
                 #charge = residue.atomic_charge(atom_index)
                 chemical_features.append([element, lj_radius, atomic_charge, is_donor, is_acceptor, is_backbone])
         return chemical_features
-
-    # Relax the protein
-    # DO NOT USE: for some reason it removes the pose from meory
-    def relax_prot(self):
+    
+    # Resets the pose to original pose
+    def reset_pose(self):
+        self.pose = self.original_pose.clone()
+    
+    # Relaxes the protein by adjusting backbone dihedrals and sidechain dihedrals
+    # to minimize the score function
+    def relax_prot(self, max_iter=100):
         relax = FastRelax()
+        relax.set_scorefxn(self.score_function)
+        relax.max_iter(max_iter)
         relax.apply(self.pose)
         return
+    
+    def pack_prot(self):
+        # create a standard ScoreFunction
+        scorefxn = get_fa_scorefxn() #  create_score_function_ws_patch('standard', 'score12')
 
+        ############
+        # PackerTask
+        # a PackerTask encodes preferences and options for sidechain packing, an
+        #    effective Rosetta methodology for changing sidechain conformations, and
+        #    design (mutation)
+        # a PackerTask stores information on a per-residue basis
+        # each residue may be packed or designed
+        # PackerTasks are handled slightly differently in PyRosetta
+        ####pose_packer = PackerTask()    # this line will not work properly
+        pose_packer = standard_packer_task(self.pose)
+        # the pose argument tells the PackerTask how large it should be
 
+        # sidechain packing "optimizes" a pose's sidechain conformations by cycling
+        #    through (Dunbrack) rotamers (sets of chi angles) at a specific residue
+        #    and selecting the rotamer which achieves the lowest score,
+        #    enumerating all possibilities for all sidechains simultaneously is
+        #    impractically expensive so the residues to be packed are individually
+        #    optimized in a "random" order
+        # packing options include:
+        #    -"freezing" the residue, preventing it from changing conformation
+        #    -including the original sidechain conformation when determining the
+        #        lowest scoring conformation
+        pose_packer.restrict_to_repacking()    # turns off design
+        pose_packer.or_include_current(True)    # considers original conformation
+        print( pose_packer )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        # packing and design can be performed by a PackRotamersMover, it requires
+        #    a ScoreFunction, for optimizing the sidechains and a PackerTask,
+        #    setting the packing and design options
+        packmover = minimization_packing.PackRotamersMover(scorefxn, pose_packer)
+        packmover.apply(self.pose)
+        return
