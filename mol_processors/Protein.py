@@ -113,21 +113,22 @@ class Prot:
 
     # Coords can be a pdb file, traj file (dcd, xtc,...), or a numpy array (frame, num_atoms, 3)
     def visualize_protein(self, coords=None, default=None, default_representation=False):
+        # Default is to use the cuurent Pose coords
+        if coords == None:
+            w = nv.show_rosetta(self.pose)
+            return w
         # Load in np array of coords
-        if type(coords).__name__ == "ndarray":
+        elif type(coords).__name__ == "ndarray":
             u = mda.Universe(self.psf_file, coords, format=MemoryReader, order='fac')
         # Load in traj or pdb file 
         elif type(coords).__name__ == "str":
             # Select all atoms associated with a protein
             u = mda.Universe(self.psf_file, coords)
-        # Default is to use the cuurent Pose coords
-        elif coords == None:
-            nv.RosettaStructure(self.pose)
         else:
             raise Exception("coords must be either a string or numpy array")
         protein_residues = u.select_atoms("protein")
         w = nv.show_mdanalysis(protein_residues, default=default, default_representation=default_representation)
-        return 
+        return w
     
     # Writes the Cartesian coordinates to disk
     def write_cart_coords(self, output_file, file_type=None):
@@ -185,9 +186,7 @@ class Prot:
         pdb_atom_index = 0
         # Loop through all residues
         for atom_id in self.atom_ids:
-                res_atom_index = atom_id.atomno()
-                residue = self.pose.residue(atom_id.rsd())
-                xyz = residue.xyz(res_atom_index) 
+                xyz = self.pose.xyz(atom_id)
                 self.cart_coords[pdb_atom_index, 0] = xyz[0]
                 self.cart_coords[pdb_atom_index, 1] = xyz[1]
                 self.cart_coords[pdb_atom_index, 2] = xyz[2]
