@@ -7,6 +7,14 @@ from utilities.data_structures.Config import Config
 import gym
 from pyrosetta import *
 
+'''
+TODO
+1. Set up hbond SAC agent by swapping code 
+2. Try different types of action networks
+    - First, one network predicts which residue's side chain to change (Vector of length num_residues),
+    - The other calculate how much to each side chain angle of that residue (Vector of length max_side_chain_angles (i.e. 4))
+    - Second, one network that finds how much to change all the side chains (vector of length num side chains) (maybe use skip connections)
+'''
 # Configs
 config = Config()
 config.seed = 1
@@ -81,9 +89,9 @@ init()
 
 #Inputs
 # Define some constants
-PDB_DIR = "./data/1BDD/"
-OCTREE_DIR = "./Octree"
-OUTPUT_DIR = "./data/1BDD/output"
+PDB_DIR = "../data/1BDD/"
+OCTREE_DIR = "../Octree"
+OUTPUT_DIR = "../data/1BDD/output"
 # Define some parameters
 pdb_id = "1bdd" # The pdb id of the input protein
 dcd_file = ""
@@ -92,5 +100,9 @@ pdb_out_file = PDB_DIR + "1cq0_pdb2pqr_charmm-outn.pdb"
 psf_file = PDB_DIR + "1bdd_pdb2pqr_charmm.psf"
 # Set flagspdb_file = "./data/"
 
-tester = SAC_Hbond(config)
-tester.create_features()
+# Start up the hbond agent
+hbond_agent = SAC_Hbond(config, pdb_init_file)
+hbond_agent.create_features()
+
+
+#

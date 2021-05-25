@@ -2,9 +2,7 @@ import os
 import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
-
 import gym
-
 
 
 from agents.Trainer import Trainer
@@ -13,7 +11,10 @@ from agents.actor_critic_agents.SAC_Discrete import SAC_Discrete
 
 config = Config()
 config.seed = 1
+
+#TODO Create new environment
 config.environment = gym.make("CartPole-v0")
+
 config.num_episodes_to_run = 450
 config.file_to_save_data_results = "experiments/results"
 config.file_to_save_results_graph = "experiments/results"
@@ -80,9 +81,10 @@ config.hyperparameters = {
 }
 
 if __name__ == "__main__":
-    AGENTS = [SAC_Discrete]
-    trainer = Trainer(config, AGENTS)
-    trainer.run_games_for_agents()
+    print(config.hyperparameters["discount_rate"])
+    #AGENTS = [SAC_Discrete]
+    #trainer = Trainer(config, AGENTS)
+    #trainer.run_games_for_agents()
 
 
 

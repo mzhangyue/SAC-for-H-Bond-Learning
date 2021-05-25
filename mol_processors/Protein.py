@@ -17,10 +17,16 @@ from pyrosetta.rosetta.protocols.relax import FastRelax
 import pyrosetta.rosetta.core.pack.rotamer_set as rotamer_set
 from pyrosetta.rosetta.core.pack import create_packer_graph
 from pyrosetta.rosetta.protocols import minimization_packing
+from pyrosetta.rosetta.core.id import TorsionID, TorsionType
 import pyrosetta.rosetta.protocols as protocols
 #from .bat import BAT
 import nglview as nv
 import numpy as np
+
+# Dictionary used for one hot encoding of element names
+one_hot_map = {"C": 0, "N": 1, "H": 2, "O": 3, "S": 2}
+NUM_ELEMENTS = 5
+
 
 # Class that allows you to query data about a specific protein and edit its
 # configuration
@@ -29,7 +35,7 @@ class Prot:
     # Initializes the Prot Object
     # pdb_file: path to pdb
     # psf_file: path to psf
-    def __init__(self, pdb_file=None, psf_file=None, mol2_file=None, prm_file=None, rtf_file=None, aprm_file=None, pdb_id=None, rot_lib_type="independent"):
+    def __init__(self, pdb_file=None, psf_file=None, mol2_file=None, prm_file=None, rtf_file=None, aprm_file=None, pdb_id=None, seq=None, rot_lib_type="independent"):
         '''
         MDANALYSIS WAY
         # Load in pdb and psf
@@ -58,9 +64,9 @@ class Prot:
             print("Loading pdb id into Rosetta")
             self.pose = pose_from_rcsb(pdb_id)
             self.pdb_name = pdb_id
-        # Default to alanine dipeptide
-        else:
-            self.pose = pose_from_sequence("AA", auto_termini=True)
+        # Default to sequence
+        elif seq != None:
+            self.pose = pose_from_sequence(seq, auto_termini=True)
             self.pdb_name = "alanine_dipeptide"
         
         # Store pdb file name and psf file name
@@ -84,13 +90,13 @@ class Prot:
         self.update_sec_struct()
         # Store Cartesian coordinates (do not store virtual atoms) 
         self.cart_coords = np.zeros((self.num_atoms-self.num_virt_atoms, 3))
-        self.update_cart_coords()
         # Store bonded adjacency list
         self.bond_adj_list = self.get_bond_adj_list()
         # Store hbond set. This only gets filled when self.get_hbonds is called
         self.hbond_set = None
         # Generates chemical features
         self.atom_chem_features = self.generate_chemical_features()
+        self.update_cart_coords()
         # Set the scoring functon
         self.score_function = get_score_function(True)
         self.score_function.setup_for_packing(self.pose, self.pack_task.repacking_residues(), self.pack_task.designing_residues())
@@ -207,9 +213,14 @@ class Prot:
         # Loop through all residues
         for atom_id in self.atom_ids:
                 xyz = self.pose.xyz(atom_id)
+                # Update cart coords in cart coords
                 self.cart_coords[pdb_atom_index, 0] = xyz[0]
                 self.cart_coords[pdb_atom_index, 1] = xyz[1]
                 self.cart_coords[pdb_atom_index, 2] = xyz[2]
+                # Update cart coords in atom features
+                self.atom_chem_features[pdb_atom_index, 0] = xyz[0]
+                self.atom_chem_features[pdb_atom_index, 1] = xyz[1]
+                self.atom_chem_features[pdb_atom_index, 2] = xyz[2]
                 pdb_atom_index += 1
     
     ################# SECONDARY STRUCTURES #################
@@ -307,19 +318,79 @@ class Prot:
     # Gets the score of the current protein conformation (reward)
     def get_score(self):
         return self.score_function(self.pose)
-        
+
+    #################### GENERAL DIHEDRAL FUNCTIONS####################
+
+    # Gets a list of TorsionIds
+    # We can either get "all" angles, only "backbone" angles, or only "sidechain" angles  
+    def get_torsion_ids(self, torsion_type="all"):
+        torsion_ids = []
+        for res_index in range(1, self.num_residues + 1):
+            if torsion_type != "sidechain":
+                torsion_ids.append(TorsionID(res_index, TorsionType.BB, 1))
+                torsion_ids.append(TorsionID(res_index, TorsionType.BB, 2))
+            if torsion_type != "backbone":
+                chis = self.get_sidechain_angles(res_index)
+                for chi_index in range(1, self.pose.residue(res_index).nchi() + 1):
+                    torsion_ids.append(TorsionID(res_index, TorsionType.CHI, chi_index))
+        return np.array(torsion_ids)
+    
+    # Sets all the torsion ids in the list to the new torsions
+    def set_torsion_ids(self, torsion_ids, new_torsions):
+        # Loop through all the torsion ids
+        for index, torsion_id in enumerate(torsion_ids):
+            res_index = torsion_id.rsd()
+            torsion_type = torsion_id.type()
+            torsion_num = torsion_id.torsion()
+            #  Set the backbone angle
+            if torsion_type == TorsionType.BB:
+                if torsion_num == 1:
+                    self.pose.set_phi(res_index, new_torsions[index])
+                elif torsion_num == 2:
+                    self.pose.set_psi(res_index, new_torsions[index])
+                else:
+                    raise Exception("Invalid torsion number for backbone")
+            # Set the sidechain angle
+            elif torsion_type == TorsionType.CHI:
+                self.pose.set_chi(torsion_num, res_index, new_torsions[index])
+            else:
+                raise Exception("Invalid torsion type")
+
+    # Pertubs all torsions in list by torsion change                
+    def perturb_torsion_ids(self, torsion_ids, torsion_changes):
+        # Loop through all torsion ids
+        for index, torsion_id in enumerate(torsion_ids):
+            res_index = torsion_id.rsd()
+            torsion_type = torsion_id.type()
+            torsion_num = torsion_id.torsion()
+            # Perturb backbone angles
+            if torsion_type == TorsionType.BB:
+                if torsion_num == 1:
+                    self.pose.set_phi(res_index, self.pose.phi(res_index) + torsion_changes[index])
+                elif torsion_num == 2:
+                    self.pose.set_psi(res_index, self.pose.psi(res_index) + torsion_changes[index])
+                else:
+                    raise Exception("Invalid torsion number for backbone")
+            # Perturb sidechain angle
+            elif torsion_type == TorsionType.CHI:
+                self.pose.set_chi(torsion_num, res_index, self.pose.chi(torsion_num, res_index) + torsion_changes[index])
+            else:
+                raise Exception("Invalid torsion type")
+        return        
+
     ################# BACKBONE DIHEDRALS (PHI, PSI, OMEGA) #################
 
     # Returns an array of length 3 with the mainchain torsions
+    # May need to change if we find out it does not trigger angle update on cart update
     def get_backbone_dihedrals(self, residue_index):
-        return self.pose.residue(residue_index).mainchain_torsions()
+        return np.array(self.pose.residue(residue_index).mainchain_torsions())
 
-    # Sets the phi angle of a residue
+    # Sets the phi angle of a residue (Uses 1-based indexing)
     def set_phi_angle(self, residue_index, new_angle):
         self.pose.set_phi(residue_index, new_angle)
         return
 
-    # Sets the psi angle of a residue
+    # Sets the psi angle of a residue (Uses 1-based indexing)
     def set_psi_angle(self, residue_index, new_angle):
         self.pose.set_psi(residue_index, new_angle)
         return
@@ -370,7 +441,7 @@ class Prot:
         self.set_sidechain_angles(res_index, new_chis)
         return
     
-    # Sets all the sidechain angles
+    # Sets all the sidechain angles in a residue
     def set_sidechain_angles(self, res_index, new_chis):
         np_new_chis = np.array(new_chis)
         residue = self.pose.residue(res_index)
@@ -378,12 +449,12 @@ class Prot:
         for chi_index in range(1, residue.nchi()+1):
             self.pose.set_chi(chi_index, res_index, np_new_chis[chi_index-1]) # the -1 is to account for 1-based indexing
         return
-
+        
     # Setup for the rotamer set
     # 1. Discrete Backbone Dependent Rotamer Set
     # 2. Discrete Backbone Independent Rotamer Set
     # 3. Continuous Backbone Dependent Rotamer Set
-    def setup_dep_rot_set(self, res_index):
+    def setup_dep_rot_set(self, res_index, backbone_changed=False):
         rot_set = self.rot_set_fact.create_rotamer_set(self.pose)
         rot_set.set_resid(res_index)
         rot_set.build_rotamers(self.pose, self.score_function, self.pack_task, self.pack_graph)
@@ -391,7 +462,7 @@ class Prot:
     
     # Sample backbone dependent rotamers (Takes a little longer than backbone independent)
     # Currently we assume that the backbone does not change
-    def sample_bbdep_rotamers(self):
+    def sample_bbdep_rotamers(self, backbone_changed=False):
         # Set each residue's rotamers
         for res_index in range(1, self.num_residues + 1):
             # Get the rotamer set for residue
@@ -421,7 +492,7 @@ class Prot:
             self.ind_rot_set[residue_type_name] = rotamers
 
     # Sample backbone indepedent rotamers    
-    def sample_bbind_rotamers(self):  
+    def sample_bbind_rotamers(self):
         for res_index in range(1, self.num_residues + 1):
             residue_type_name = str(self.pose.residue_type(res_index).aa())
             rot_set = self.ind_rot_set[residue_type_name]
@@ -496,28 +567,51 @@ class Prot:
     
     # Generates atom features using Rosetta
     # Each atom has the following features in this order
-    # 1. The atom element name
+    # 1. The atom element name (or one hot encoding of it)
     # 2. The atom the lj radius
     # 3. The atomic charge
     # 4. Boolean indicating whether atom could be donor
     # 5. Boolean indicating whether atom could be acceptor
     # 6. Boolean indicating whether atom is on the backbone
-    def generate_chemical_features(self):
+    def generate_chemical_features(self, one_hot=True):
         chemical_features = []
         for atom_id in  self.atom_ids:
+                chemical_feature = []
+                # Grab cart coords
+                xyz = self.pose.xyz(atom_id)
+                xpos = xyz[0]
+                ypos = xyz[1]
+                zpos = xyz[2]
+                # Grab atom index and residue
                 atom_index = atom_id.atomno()
                 residue = self.pose.residue(atom_id.rsd())
-                #atom_name = residue.atom_name(atom_index)
                 atom_type = residue.atom_type(atom_index)
-                #hybrid = atom_type.hybridization()
+                # Grab all other chemical features
                 lj_radius = atom_type.lj_radius()
                 is_donor = atom_type.is_donor()
                 is_acceptor = atom_type.is_acceptor()
                 is_backbone = residue.atom_is_backbone(atom_index)
                 atomic_charge = residue.atomic_charge(atom_index)
-                element = atom_type.element()
                 #charge = residue.atomic_charge(atom_index)
-                chemical_features.append([element, lj_radius, atomic_charge, is_donor, is_acceptor, is_backbone])
+                #hybrid = atom_type.hybridization()
+                #atom_name = residue.atom_name(atom_index)
+                
+                # Add cart coords first
+                chemical_feature = [xpos, ypos, zpos]
+                # Add element 
+                if one_hot:
+                    element_id = one_hot_map[atom_type.element()] # One hot encoding of element
+                    one_hot_element = [0] * NUM_ELEMENTS
+                    one_hot_element[element_id] = 1
+                    chemical_feature.extend(one_hot_element)
+                else: 
+                    element = atom_type.element() # Element as string
+                    chemical_feature.append(element)
+                # Add all other chemical features
+                chemical_feature.extend([lj_radius, atomic_charge, is_donor, is_acceptor, is_backbone])
+                chemical_features.append(chemical_feature)
+        # Convert chemical features to matrix
+        chemical_features = np.array(chemical_features)
         return chemical_features
     
     # Resets the pose to original pose
@@ -533,6 +627,7 @@ class Prot:
         relax.apply(self.pose)
         return
     
+    # THIS DOES NOT WORK
     def pack_prot(self):
         # create a standard ScoreFunction
         scorefxn = get_fa_scorefxn() #  create_score_function_ws_patch('standard', 'score12')
