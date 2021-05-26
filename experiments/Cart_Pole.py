@@ -81,10 +81,9 @@ config.hyperparameters = {
 }
 
 if __name__ == "__main__":
-    print(config.hyperparameters["discount_rate"])
-    #AGENTS = [SAC_Discrete]
-    #trainer = Trainer(config, AGENTS)
-    #trainer.run_games_for_agents()
+    AGENTS = [SAC_Discrete]
+    trainer = Trainer(config, AGENTS)
+    trainer.run_games_for_agents()
 
 
 

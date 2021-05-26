@@ -1,3 +1,4 @@
+from environments.SingleProtEnv import SingleProtEnv
 import sys
 import os
 from os.path import dirname, abspath
@@ -6,6 +7,8 @@ from agents.actor_critic_agents.SAC_Hbond import SAC_Hbond
 from utilities.data_structures.Config import Config
 import gym
 from pyrosetta import *
+from agents.Trainer import Trainer
+from environments.SingleProtEnv import SingleProtEnv
 
 '''
 TODO
@@ -18,7 +21,6 @@ TODO
 # Configs
 config = Config()
 config.seed = 1
-config.environment = gym.make("CartPole-v0")
 config.num_episodes_to_run = 450
 config.file_to_save_data_results = "results/hbond.pkl"
 config.file_to_save_results_graph = "results/hbond.png"
@@ -34,6 +36,14 @@ config.save_model = False
 config.debug_mode = False
 # Hyperparameters
 config.hyperparameters = {
+    "Environ": {
+      "adj_list_type":,
+      "step_size",
+      "discount_rate",
+      "discount_rate_threshold",
+      "max_time_step",
+      "torsions_to_change",
+    },
     "Actor_Critic_Agents":  {
 
         "learning_rate": 0.005,
@@ -45,11 +55,13 @@ config.hyperparameters = {
         "normalise_rewards": True,
         "exploration_worker_difference": 2.0,
         "clip_rewards": False,
-
         "Actor": {
             "learning_rate": 0.0003,
+            "conv_dim": ([64 ,32], 128, 64),
+            "z_dim": 32
+            "action_dim": 
             "linear_hidden_units": [64, 64],
-            "final_layer_activation": "Softmax",
+            "final_layer_activation": None,
             "batch_norm": False,
             "tau": 0.005,
             "gradient_clipping_norm": 5,
@@ -58,6 +70,9 @@ config.hyperparameters = {
 
         "Critic": {
             "learning_rate": 0.0003,
+            "conv_dim": ([64 ,32], 128, 64),
+            "z_dim": 32,
+            "action_dim": (,[])
             "linear_hidden_units": [64, 64],
             "final_layer_activation": None,
             "batch_norm": False,
@@ -84,9 +99,6 @@ config.hyperparameters = {
     }
 }
 
-# Initialize Rosetta
-init()
-
 #Inputs
 # Define some constants
 PDB_DIR = "../data/1BDD/"
@@ -98,11 +110,12 @@ dcd_file = ""
 pdb_init_file = PDB_DIR + "1bdd.pdb"
 pdb_out_file = PDB_DIR + "1cq0_pdb2pqr_charmm-outn.pdb"
 psf_file = PDB_DIR + "1bdd_pdb2pqr_charmm.psf"
-# Set flagspdb_file = "./data/"
-
+config.environment = SingleProtEnv(config.hyperparameters, pdb_file=pdb_init_file)
+# Initialize Rosetta
+init()
 # Start up the hbond agent
-hbond_agent = SAC_Hbond(config, pdb_init_file)
-hbond_agent.create_features()
-
-
-#
+hbond_agent = SAC_Hbond(config)
+# Do 200 runs of the agent
+for run in range(1, 200):
+    game_scores, rolling_scores, time_taken = hbond_agent.run_n_episodes()
+    print("Run {} | Game Scores: {} | Rolling Scores: {} | Time taken: {}".format(game_scores, rolling_scores, time_taken))

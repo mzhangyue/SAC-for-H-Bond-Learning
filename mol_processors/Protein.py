@@ -27,7 +27,6 @@ import numpy as np
 one_hot_map = {"C": 0, "N": 1, "H": 2, "O": 3, "S": 2}
 NUM_ELEMENTS = 5
 
-
 # Class that allows you to query data about a specific protein and edit its
 # configuration
 class Prot:
@@ -68,7 +67,10 @@ class Prot:
         elif seq != None:
             self.pose = pose_from_sequence(seq, auto_termini=True)
             self.pdb_name = "alanine_dipeptide"
-        
+
+        # Atom ID to pdb_atom_id dict
+        self.incl_adj = False
+        self.atom_id_to_pdb_id = {}
         # Store pdb file name and psf file name
         self.pdb_file = pdb_file
         self.psf_file = psf_file
@@ -91,11 +93,13 @@ class Prot:
         # Store Cartesian coordinates (do not store virtual atoms) 
         self.cart_coords = np.zeros((self.num_atoms-self.num_virt_atoms, 3))
         # Store bonded adjacency list
-        self.bond_adj_list = self.get_bond_adj_list()
+        #self.bond_adj_list = self.get_bond_adj_list()
+        self.bond_adj_mat = self.get_bond_adj_mat()
         # Store hbond set. This only gets filled when self.get_hbonds is called
         self.hbond_set = None
         # Generates chemical features
         self.atom_chem_features = self.generate_chemical_features()
+        print(self.atom_chem_features)
         self.update_cart_coords()
         # Set the scoring functon
         self.score_function = get_score_function(True)
@@ -180,6 +184,7 @@ class Prot:
     # 2. atom_id.atomno()
     def get_atom_ids(self):
         atom_ids = []
+        pdb_atom_id = 0
         for res_index in range(1, self.num_residues + 1):
             residue = self.pose.residue(res_index)
             num_res_atoms = residue.natoms()
@@ -188,6 +193,8 @@ class Prot:
                 # skip virtual atoms (i.e. NV on proline)
                 if(not residue.atom_type(res_atom_index).is_virtual()):
                     atom_ids.append(AtomID(res_atom_index, res_index))
+                    self.atom_id_to_pdb_id[(res_atom_index, res_index)] = pdb_atom_id
+                    pdb_atom_id += 1
         return atom_ids
 
     
@@ -235,9 +242,8 @@ class Prot:
 
     ################# COVALENT BONDS #################
 
-    # The adjacency matrix showing which atoms are bonded to which atoms
+    # The adjacency list showing which atoms are bonded to which atoms
     def get_bond_adj_list(self):
-        global_atom_index  = 0
         bond_adj_list = {}
         # Loop through all residues
         for atom_id in self.atom_ids:
@@ -245,6 +251,26 @@ class Prot:
             bond_adj_list[atom_id] = np.array(neighbor_atom_ids)
         return bond_adj_list
     
+    # The adjacency matrix showing which atoms are bonded to which atoms
+    def get_bond_adj_mat(self, self_neighbors=False):
+        bond_adj_list = []
+        # Loop through all residues
+        for atom_id in self.atom_ids:
+            bond_adj_list.append(self.get_bond_adj_for_atom(atom_id))
+        if self_neighbors:
+            return np.array(bond_adj_list) + np.eye(len(self.atom_ids), len(self.atom_ids)
+        return np.array(bond_adj_list)
+
+    # Can only be called after get_bond_adj_list
+    def get_bond_adj_for_atom(self, atom_id):
+        adj_info =  [0] * len(self.atom_ids)
+        neighbors = self.pose.conformation().bonded_neighbor_all_res(atom_id)
+        # Query for pdb atom id of neighbor
+        for neighbor in neighbors:
+            neighbor_pdb_id = self.atom_id_to_pdb_id[(neighbor.atomno(), neighbor.rsd())]
+            adj_info[neighbor_pdb_id] = 1
+        return adj_info
+        
     # Prints the adjacency list
     def print_bond_adj_list(self):
         for atom_id in self.bond_adj_list:
@@ -262,7 +288,8 @@ class Prot:
                 bonded_atom_residue = self.pose.residue(bonded_atom_res_index)
                 bonded_atom_res_name = bonded_atom_residue.name()
                 bonded_atom_name = bonded_atom_residue.atom_name(bonded_atom_index)
-                print("{} with Atom ID ({},{}) is bonded to {} with Atom ID({}, {})".format(atom_name, atom_index, atom_res_index, bonded_atom_name, bonded_atom_index, bonded_atom_res_index))
+                bonded_atom_pdb_index = self.atom_id_to_pdb_id[(bonded_atom_index, bonded_atom_res_index)]
+                print("{} with Atom ID ({},{}) is bonded to {} with Atom ID({}, {}) and PDB_ID {} ".format(atom_name, atom_index, atom_res_index, bonded_atom_name, bonded_atom_index, bonded_atom_res_index, bonded_atom_pdb_index))
     
     # Debugging tool that checks to make sure each atom is in each other's bonded list
     def validate_bond_adj_list(self):
@@ -567,49 +594,55 @@ class Prot:
     
     # Generates atom features using Rosetta
     # Each atom has the following features in this order
-    # 1. The atom element name (or one hot encoding of it)
+    # 1. X Y Z (length 3)
+    # 1. The atom element name (or one hot encoding of it (length 5))
     # 2. The atom the lj radius
     # 3. The atomic charge
     # 4. Boolean indicating whether atom could be donor
     # 5. Boolean indicating whether atom could be acceptor
     # 6. Boolean indicating whether atom is on the backbone
-    def generate_chemical_features(self, one_hot=True):
+    def generate_chemical_features(self, one_hot=True, include_adj=True):
         chemical_features = []
         for atom_id in  self.atom_ids:
-                chemical_feature = []
-                # Grab cart coords
-                xyz = self.pose.xyz(atom_id)
-                xpos = xyz[0]
-                ypos = xyz[1]
-                zpos = xyz[2]
-                # Grab atom index and residue
-                atom_index = atom_id.atomno()
-                residue = self.pose.residue(atom_id.rsd())
-                atom_type = residue.atom_type(atom_index)
-                # Grab all other chemical features
-                lj_radius = atom_type.lj_radius()
-                is_donor = atom_type.is_donor()
-                is_acceptor = atom_type.is_acceptor()
-                is_backbone = residue.atom_is_backbone(atom_index)
-                atomic_charge = residue.atomic_charge(atom_index)
-                #charge = residue.atomic_charge(atom_index)
-                #hybrid = atom_type.hybridization()
-                #atom_name = residue.atom_name(atom_index)
-                
-                # Add cart coords first
-                chemical_feature = [xpos, ypos, zpos]
-                # Add element 
-                if one_hot:
-                    element_id = one_hot_map[atom_type.element()] # One hot encoding of element
-                    one_hot_element = [0] * NUM_ELEMENTS
-                    one_hot_element[element_id] = 1
-                    chemical_feature.extend(one_hot_element)
-                else: 
-                    element = atom_type.element() # Element as string
-                    chemical_feature.append(element)
-                # Add all other chemical features
-                chemical_feature.extend([lj_radius, atomic_charge, is_donor, is_acceptor, is_backbone])
-                chemical_features.append(chemical_feature)
+            chemical_feature = []
+            # Grab cart coords
+            xyz = self.pose.xyz(atom_id)
+            xpos = xyz[0]
+            ypos = xyz[1]
+            zpos = xyz[2]
+            # Grab atom index and residue
+            atom_index = atom_id.atomno()
+            residue = self.pose.residue(atom_id.rsd())
+            atom_type = residue.atom_type(atom_index)
+            # Grab all other chemical features
+            lj_radius = atom_type.lj_radius()
+            is_donor = atom_type.is_donor()
+            is_acceptor = atom_type.is_acceptor()
+            is_backbone = residue.atom_is_backbone(atom_index)
+            atomic_charge = residue.atomic_charge(atom_index)
+            #charge = residue.atomic_charge(atom_index)
+            #hybrid = atom_type.hybridization()
+            #atom_name = residue.atom_name(atom_index)
+            
+            # Add cart coords first
+            chemical_feature = [xpos, ypos, zpos]
+            # Add element 
+            if one_hot:
+                element_id = one_hot_map[atom_type.element()] # One hot encoding of element
+                one_hot_element = [0] * NUM_ELEMENTS
+                one_hot_element[element_id] = 1
+                chemical_feature.extend(one_hot_element)
+            else: 
+                element = atom_type.element() # Element as string
+                chemical_feature.append(element)
+            # Add all other chemical features
+            chemical_feature.extend([lj_radius, atomic_charge, is_donor, is_acceptor, is_backbone])
+            #if self.incl_adj:
+            #    bond_adj_info = self.get_bond_adj_for_atom(atom_id)
+            #    #hbond_adj_info = self.get_hbond_adj_for_atom(atom_id)
+            #    chemical_feature.extend(bond_adj_info)
+            #    #chemical_feature.extend(hbond_adj_info)
+            chemical_features.append(chemical_feature)
         # Convert chemical features to matrix
         chemical_features = np.array(chemical_features)
         return chemical_features

@@ -1,31 +1,154 @@
+from os import stat_result
 import numpy as np
 from agents.Base_Agent import Base_Agent
-from agents.actor_critic_agents.SAC_Discrete import SAC_Discrete
 from mol_processors.Protein import Prot
 from utils import generate_one_hot_encoding
 import torch
 import torch.nn as nn
+from utilities.OU_Noise import OU_Noise
+from utilities.data_structures.Replay_Buffer import Replay_Buffer
+from torch.optim import Adam
+import torch.functional as F
+from agents.actor_critic_agents.SAC import SAC
+from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
 
-class SAC_Hbond(SAC_Discrete):
-    # Initializes the SAC hbond agent
-    def __init__(self, config, pdb_file, psf_file=None, mol2_file=None, prm_file=None, rtf_file=None, aprm_file=None, pdb_id=None):
-        Base_Agent.__init__(self, config)
-        return
+class Actor(nn.Module):
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, num_nodes, dropout=0):
+        super(Actor, self).__init__()
+        graph_conv_dim, aux_dim, linear_dim = conv_dim
+        self.total_node_dim = node_dim * num_nodes
+        self.node_dim = node_dim
+        self.num_nodes = num_nodes
+        self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
+        self.agg_layer = GraphAggregation(graph_conv_dim[-1], aux_dim, node_dim, dropout)
+        self.mlp = MLP(aux_dim, linear_dim, nn.Tanh())
+        self.last_layer = nn.Linear(linear_dim[-1], z_dim)
     
-    def produce_action_and_action_info(self, state):
-        """Given the state, produces an action, the probability of the action, the log probability of the action, and
-        the argmax action"""
-        action_probabilities = self.actor_local(state)
-        max_probability_action = torch.argmax(action_probabilities, dim=-1)
-        action_distribution = create_actor_distribution(self.action_types, action_probabilities, self.action_size)
-        action = action_distribution.sample().cpu()
-        # Have to deal with situation of 0.0 probabilities because we can't do log 0
-        z = action_probabilities == 0.0
-        z = z.float() * 1e-8
-        log_action_probabilities = torch.log(action_probabilities + z)
-        return action, (action_probabilities, log_action_probabilities), max_probability_action
+    # adj is the adjacency matrix while node is the feature matrix
+    # adj (batch, n, n, edge_dim)
+    def forward(self, state, hidden=None, activation=None):
+        # Extract npde and adj from state
+        node = torch.reshape(state[:, :self.total_node_dim], (-1, self.num_nodes, self.node_dim)) # batch x num_nodes x node_dim
+        adj = torch.reshape(state[:, self.total_node_dim:], (-1, self.num_nodes, self.num_nodes, 1)) # batch x num_nodes x num_nodes
+        adj = adj[:,:,:,1:].permute(0,3,1,2)
+        input1 = torch.cat((hidden, node), -1) if hidden is not None else node 
+        h = self.gcn_layer(input1, adj)
+        input1 = torch.cat((h, hidden, node) if hidden is not None else (h, node), -1)
+        h = self.agg_layer(input1, torch.tanh)
+        h = self.mlp(h)
+        
+        return self.last_layer(h)
+
+class Critic(nn.Module):
+
+    # Structure: GraphConv Layer (GCL)-> Aggreation of previous GCL ->MLP
+    #
+    #
+    # 
+    # node_dim (int): dim of node feature
+    # conv_dim ([int], int, int)):
+    #   tuple containing hidden dims of each conv, output dim of aggregation, dim of last linear layer after GCN
+    # edge_dim (int): dimension of edges
+    # z_dim (int): Final layer for state processing
+    # action_dim ([int]): linear_dims for MLPs processing action
+
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, num_nodes, input_action_dim, dropout=0):
+        super(Critic, self).__init__()
+        graph_conv_dim, aux_dim, linear_dim = conv_dim
+        self.total_node_dim = node_dim * num_nodes
+        self.node_dim = node_dim
+        self.num_nodes = num_nodes
+        self.input_action_dim = input_action_dim
+        # Process State
+        self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
+        self.agg_layer = GraphAggregation(graph_conv_dim[-1], aux_dim, node_dim, dropout)
+        self.mlp = MLP(aux_dim, linear_dim, nn.Tanh())
+        self.last_state_layer = nn.Linear(linear_dim[-1], z_dim)
+        # Processes action
+        self.action_mlp = MLP(self.input_action_dim, action_dim, nn.Tanh())
+        # Processes action and state
+        self.last_layer = nn.Linear(action_dim[-1] + z_dim, 1)
+    
+    # adj is the adjacency matrix while node is the feature matrix
+    def forward(self, state_action, hidden=None, activation=None):
+        # Extract Nodes, adj, and action
+        node = torch.reshape(state_action[:, :self.total_node_dim], (-1, self.num_nodes, self.node_dim)) # batch x num_nodes x node_dim
+        adj_size = self.num_nodes * self.num_nodes
+        adj = torch.reshape(state_action[:, self.total_node_dim:adj_size], (-1, self.num_nodes, self.num_nodes, 1)) # batch x num_nodes x num_nodes
+        begin_action = adj_size + self.total_node_dim
+        action = state_action[:, begin_action:) # batch x num_actions
+        # Process state        
+        adj = adj[:,:,:,1:].permute(0,3,1,2)
+        input1 = torch.cat((hidden, node), -1) if hidden is not None else node
+        h = self.gcn_layer(input1, adj)
+        input1 = torch.cat((h, hidden, node) if hidden is not None else (h, node), -1)
+        h = self.agg_layer(input1, torch.tanh)
+        h = self.mlp(h)
+        h = self.last_state_layer(h)
+        # Process action
+        h2 = self.action_mlp(action)
+        # Concatenate procesed state and action and process both
+        h2 = torch.cat((h , h2))
+        return self.last_layer(h2)
+    
+class SAC_Hbond(SAC):
+    # Initializes the SAC hbond agent
+    def __init__(self, config):
+        Base_Agent.__init__(self, config)
+        assert self.action_types == "CONTINUOUS", "Action types must be continuous. Use SAC Discrete instead for discrete actions"
+        assert self.config.hyperparameters["Actor"]["final_layer_activation"] != "Softmax", "Final actor layer must not be softmax"
+        # Extract hyperparams
+        self.hyperparameters = config.hyperparameters["Actor_Critic_Agents"]
+        self.node_dim = len(self.environment.features[0])
+        self.num_nodes = len(self.environment.features)
+        self.edge_dim = 1
+        self.input_action_dim = len(self.environment.torsion_ids_to_change)
+        # Initialize Critic
+        crit_hyp = self.hyperparameters["Critic"]
+        self.critic_local = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.num_nodes, self.input_action_dim)
+        self.critic_local_2 = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.num_nodes, self.input_action_dim)
+        self.critic_optimizer = torch.optim.Adam(self.critic_local.parameters(),
+                                                 lr=self.hyperparameters["Critic"]["learning_rate"], eps=1e-4)
+        self.critic_optimizer_2 = torch.optim.Adam(self.critic_local_2.parameters(),
+                                                   lr=self.hyperparameters["Critic"]["learning_rate"], eps=1e-4)
+        self.critic_target = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.num_nodes, self.input_action_dim)
+        self.critic_target_2 = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.num_nodes, self.input_action_dim)
+        # Copy params from local to target critic network
+        Base_Agent.copy_model_over(self.critic_local, self.critic_target)
+        Base_Agent.copy_model_over(self.critic_local_2, self.critic_target_2)
+        # Initialize replay buffer
+        self.memory = Replay_Buffer(self.hyperparameters["Critic"]["buffer_size"], self.hyperparameters["batch_size"],
+                                    self.config.seed)
+        # Initialize Action
+        act_hyp = self.hyperparameters["Actor"]
+        self.actor_local = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, act_hyp["z_dim"], self.num_nodes)
+        self.actor_optimizer = torch.optim.Adam(self.actor_local.parameters(),
+                                          lr=self.hyperparameters["Actor"]["learning_rate"], eps=1e-4)
+        # Entropy Tuning
+        self.automatic_entropy_tuning = self.hyperparameters["automatically_tune_entropy_hyperparameter"]
+        if self.automatic_entropy_tuning:
+            self.target_entropy = -torch.prod(torch.Tensor(self.environment.action_space.shape).to(self.device)).item() # heuristic value from the paper
+            self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
+            self.alpha = self.log_alpha.exp()
+            self.alpha_optim = Adam([self.log_alpha], lr=self.hyperparameters["Actor"]["learning_rate"], eps=1e-4)
+        else:
+            self.alpha = self.hyperparameters["entropy_term_weight"]
+
+        # OU Noise
+        self.add_extra_noise = self.hyperparameters["add_extra_noise"]
+        if self.add_extra_noise:
+            self.noise = OU_Noise(self.action_size, self.config.seed, self.hyperparameters["mu"],
+                                  self.hyperparameters["theta"], self.hyperparameters["sigma"])
+
+        self.do_evaluation_iterations = self.hyperparameters["do_evaluation_iterations"]
+        return
+
+    # Gets the title of the environment (i.e. Protein)
+    def get_environment_title(self):
+        return "SingleProtein"
 
 
+    ########################## LOSS FUNCTIONS ###################
     def calculate_critic_losses(self, state_batch, action_batch, reward_batch, next_state_batch, mask_batch):
         """Calculates the losses for the two critics. This is the ordinary Q-learning loss except the additional entropy
          term is taken into account"""
@@ -55,28 +178,3 @@ class SAC_Hbond(SAC_Discrete):
         is True."""
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
         return alpha_loss
-
-def create_NN(self, input_dim, output_dim, key_to_use=None, override_seed=None, hyperparameters=None):
-        """Creates a neural network for the agents to use"""
-        if hyperparameters is None: hyperparameters = self.hyperparameters
-        if key_to_use: hyperparameters = hyperparameters[key_to_use]
-        if override_seed: seed = override_seed
-        else: seed = self.config.seed
-
-        default_hyperparameter_choices = {"output_activation": None, "hidden_activations": "relu", "dropout": 0.0,
-                                          "initialiser": "default", "batch_norm": False,
-                                          "columns_of_data_to_be_embedded": [],
-                                          "embedding_dimensions": [], "y_range": ()}
-
-        for key in default_hyperparameter_choices:
-            if key not in hyperparameters.keys():
-                hyperparameters[key] = default_hyperparameter_choices[key]
-
-        return NN(input_dim=input_dim, layers_info=hyperparameters["linear_hidden_units"] + [output_dim],
-                  output_activation=hyperparameters["final_layer_activation"],
-                  batch_norm=hyperparameters["batch_norm"], dropout=hyperparameters["dropout"],
-                  hidden_activations=hyperparameters["hidden_activations"], initialiser=hyperparameters["initialiser"],
-                  columns_of_data_to_be_embedded=hyperparameters["columns_of_data_to_be_embedded"],
-                  embedding_dimensions=hyperparameters["embedding_dimensions"], y_range=hyperparameters["y_range"],
-                  random_seed=seed).to(self.device)
-

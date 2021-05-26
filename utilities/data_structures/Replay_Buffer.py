@@ -6,12 +6,13 @@ import numpy as np
 class Replay_Buffer(object):
     """Replay buffer to store past experiences that the agent can then use for training data"""
     
-    def __init__(self, buffer_size, batch_size, seed, device=None):
+    def __init__(self, buffer_size, batch_size, seed, device=None, state_is_graph=False):
 
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)
+        self.state_is_graph = state_is_graph
         if device:
             self.device = torch.device(device)
         else:
