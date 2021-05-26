@@ -95,7 +95,7 @@ class SingleProtEnv(gym.Env):
         exp_term = torch.exp(self.discount_rate * self.time_step / self.discount_rate_threshold)
         energy = self.prot.get_score() # E_t
         # \gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t
-        return torch.sum(torch.tanh(angle_change) ** 2)/2 - energy
+        return exp_term * (torch.sum(torch.tanh(angle_change) ** 2)/2 - energy)
 
     # Checks if we are in terminal state
     def is_terminal_state(self):
