@@ -93,13 +93,11 @@ class Prot:
         # Store Cartesian coordinates (do not store virtual atoms) 
         self.cart_coords = np.zeros((self.num_atoms-self.num_virt_atoms, 3))
         # Store bonded adjacency list
-        #self.bond_adj_list = self.get_bond_adj_list()
         self.bond_adj_mat = self.get_bond_adj_mat()
         # Store hbond set. This only gets filled when self.get_hbonds is called
         self.hbond_set = None
         # Generates chemical features
         self.atom_chem_features = self.generate_chemical_features()
-        print(self.atom_chem_features)
         self.update_cart_coords()
         # Set the scoring functon
         self.score_function = get_score_function(True)
@@ -219,7 +217,9 @@ class Prot:
         pdb_atom_index = 0
         # Loop through all residues
         for atom_id in self.atom_ids:
-                xyz = self.pose.xyz(atom_id)
+                res_id = atom_id.rsd()
+                atom_index = atom_id.atomno()
+                xyz = self.pose.residue(res_id).atom(atom_index).xyz()
                 # Update cart coords in cart coords
                 self.cart_coords[pdb_atom_index, 0] = xyz[0]
                 self.cart_coords[pdb_atom_index, 1] = xyz[1]
@@ -258,7 +258,7 @@ class Prot:
         for atom_id in self.atom_ids:
             bond_adj_list.append(self.get_bond_adj_for_atom(atom_id))
         if self_neighbors:
-            return np.array(bond_adj_list) + np.eye(len(self.atom_ids), len(self.atom_ids)
+            return np.array(bond_adj_list) + np.eye(len(self.atom_ids), len(self.atom_ids))
         return np.array(bond_adj_list)
 
     # Can only be called after get_bond_adj_list

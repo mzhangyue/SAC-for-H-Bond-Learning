@@ -7,8 +7,100 @@ from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import math
 import MDAnalysis as mda
+import torch
 
+def create_log_gaussian(mean, log_std, t):
+    quadratic = -((0.5 * (t - mean) / (log_std.exp())).pow(2))
+    l = mean.shape
+    log_z = log_std
+    z = l[-1] * math.log(2 * math.pi)
+    log_p = quadratic.sum(dim=-1) - log_z.sum(dim=-1) - 0.5 * z
+    return log_p
 
+def logsumexp(inputs, dim=None, keepdim=False):
+    if dim is None:
+        inputs = inputs.view(-1)
+        dim = 0
+    s, _ = torch.max(inputs, dim=dim, keepdim=True)
+    outputs = s + (inputs - s).exp().sum(dim=dim, keepdim=True).log()
+    if not keepdim:
+        outputs = outputs.squeeze(dim)
+    return outputs
+
+def soft_update(target, source, tau):
+    for target_param, param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+
+def hard_update(target, source):
+    for target_param, param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(param.data)
+
+# Normalizes an angle in betwen -180 and 180 or 
+def normalize_angle(angle, in_degrees=True):
+    if in_degrees:
+        angle = angle % 360
+        angle = (angle + 360) % 360
+        if (angle > 180):
+            angle -= 360
+    else:
+        angle = angle % 2*math.pi
+        angle = (angle + 2*math.pi) % (2*math.pi)
+        if (angle > math.pi):
+            angle -= 2*math.pi
+    
+        
+
+# Converts a list of torch tensors to one long unbatched flat tensor
+# tensors ([tensors]): iterable of tensors 
+def tensors_to_flat(tensors):
+    flat_tensors = []
+    # Flatten each tensor
+    for tensor in tensors:
+        flat_tensors.append(torch.flatten(tensor))
+    # Concatenate the flattened tensors
+    return torch.cat(flat_tensors) 
+
+# Converts one long flat batched tensor to multiple reshaped unbatched tensors
+# The product of all the tensor shapes must match the length of flat tensor
+# flat_tensor (tensor): flat batched tensor
+# tensor_shapes ([[int]]): list of tensor shapes
+def flat_to_tensors(flat_tensor, tensor_shapes):
+    start_dim = 0
+    unflattened_tensors = [] 
+    # Loop through all shapes
+    for tensor_shape in tensor_shapes:
+        total_dim = np.prod(np.array(tensor_shape)) # Find product of dims 
+        end_dim = start_dim + total_dim 
+        tensor = flat_tensor[start_dim:end_dim] # Grabs correct part of the flat tensor
+        unflattened_tensors.append(torch.reshape(tensor, tensor_shape))
+        start_dim += total_dim
+    return tuple(unflattened_tensors)
+
+# Converts a list of torch tensors to one batched long flat tensor 
+# tensors ([tensors]): iterable of tensors
+def tensors_to_batch_flat(tensors):  
+    flat_tensors = []
+    # Flatten each tensor
+    for tensor in tensors:
+        flat_tensors.append(torch.flatten(tensor, start_dim=1))
+    # Concatenate the flattened tensors
+    return torch.cat(flat_tensors, 1) 
+ 
+# Converts one long flat batched tensor to multiple reshaped batched tensors
+# The product of all the tensor shapes must match the length of flat tensor
+# flat_tensor (tensor): flat batched tensor
+# tensor_shapes ([[int]]): list of tensor shapes
+def batch_flat_to_tensors(flat_tensor, tensor_shapes):
+    start_dim = 0
+    unflattened_tensors = [] 
+    # Loop through all shapes
+    for tensor_shape in tensor_shapes:
+        total_dim = np.prod(np.array(tensor_shape)) # Find product of dims 
+        end_dim = start_dim + total_dim 
+        tensor = flat_tensor[:, start_dim:end_dim] # Grabs correct part of the flat tensor
+        unflattened_tensors.append(torch.reshape(tensor, (-1,) + tensor_shape))
+        start_dim += total_dim
+    return tuple(unflattened_tensors)
 
 # Combine multiple PDBsinto one pdb file
 def combine_pdbs(pdb_files, output_file):

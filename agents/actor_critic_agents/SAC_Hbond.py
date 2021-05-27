@@ -2,7 +2,7 @@ from os import stat_result
 import numpy as np
 from agents.Base_Agent import Base_Agent
 from mol_processors.Protein import Prot
-from utils import generate_one_hot_encoding
+from utils import generate_one_hot_encoding, tensors_to_batch_flat, batch_flat_to_tensors
 import torch
 import torch.nn as nn
 from utilities.OU_Noise import OU_Noise
@@ -13,12 +13,9 @@ from agents.actor_critic_agents.SAC import SAC
 from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
 
 class Actor(nn.Module):
-    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, num_nodes, dropout=0):
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, dropout=0):
         super(Actor, self).__init__()
         graph_conv_dim, aux_dim, linear_dim = conv_dim
-        self.total_node_dim = node_dim * num_nodes
-        self.node_dim = node_dim
-        self.num_nodes = num_nodes
         self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
         self.agg_layer = GraphAggregation(graph_conv_dim[-1], aux_dim, node_dim, dropout)
         self.mlp = MLP(aux_dim, linear_dim, nn.Tanh())
@@ -26,10 +23,9 @@ class Actor(nn.Module):
     
     # adj is the adjacency matrix while node is the feature matrix
     # adj (batch, n, n, edge_dim)
-    def forward(self, state, hidden=None, activation=None):
-        # Extract npde and adj from state
-        node = torch.reshape(state[:, :self.total_node_dim], (-1, self.num_nodes, self.node_dim)) # batch x num_nodes x node_dim
-        adj = torch.reshape(state[:, self.total_node_dim:], (-1, self.num_nodes, self.num_nodes, 1)) # batch x num_nodes x num_nodes
+    # tensor_shapes allows us unpack the state tensor to the right size
+    def forward(self, state, tensor_shapes, hidden=None, activation=None):
+        node, adj = batch_flat_to_tensors(state, tensor_shapes=tensor_shapes)
         adj = adj[:,:,:,1:].permute(0,3,1,2)
         input1 = torch.cat((hidden, node), -1) if hidden is not None else node 
         h = self.gcn_layer(input1, adj)
@@ -42,9 +38,6 @@ class Actor(nn.Module):
 class Critic(nn.Module):
 
     # Structure: GraphConv Layer (GCL)-> Aggreation of previous GCL ->MLP
-    #
-    #
-    # 
     # node_dim (int): dim of node feature
     # conv_dim ([int], int, int)):
     #   tuple containing hidden dims of each conv, output dim of aggregation, dim of last linear layer after GCN
@@ -70,13 +63,8 @@ class Critic(nn.Module):
         self.last_layer = nn.Linear(action_dim[-1] + z_dim, 1)
     
     # adj is the adjacency matrix while node is the feature matrix
-    def forward(self, state_action, hidden=None, activation=None):
-        # Extract Nodes, adj, and action
-        node = torch.reshape(state_action[:, :self.total_node_dim], (-1, self.num_nodes, self.node_dim)) # batch x num_nodes x node_dim
-        adj_size = self.num_nodes * self.num_nodes
-        adj = torch.reshape(state_action[:, self.total_node_dim:adj_size], (-1, self.num_nodes, self.num_nodes, 1)) # batch x num_nodes x num_nodes
-        begin_action = adj_size + self.total_node_dim
-        action = state_action[:, begin_action:) # batch x num_actions
+    def forward(self, state_action, tensor_shapes, hidden=None, activation=None):
+        node, adj, action = batch_flat_to_tensors(state_action, tensor_shapes=tensor_shapes)
         # Process state        
         adj = adj[:,:,:,1:].permute(0,3,1,2)
         input1 = torch.cat((hidden, node), -1) if hidden is not None else node

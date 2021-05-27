@@ -34,70 +34,8 @@ config.overwrite_existing_results_file = False
 config.randomise_random_seed = True
 config.save_model = False
 config.debug_mode = False
-# Hyperparameters
-config.hyperparameters = {
-    "Environ": {
-      "adj_list_type":,
-      "step_size",
-      "discount_rate",
-      "discount_rate_threshold",
-      "max_time_step",
-      "torsions_to_change",
-    },
-    "Actor_Critic_Agents":  {
 
-        "learning_rate": 0.005,
-        "linear_hidden_units": [20, 10],
-        "final_layer_activation": ["SOFTMAX", None],
-        "gradient_clipping_norm": 5.0,
-        "discount_rate": 0.99,
-        "epsilon_decay_rate_denominator": 1.0,
-        "normalise_rewards": True,
-        "exploration_worker_difference": 2.0,
-        "clip_rewards": False,
-        "Actor": {
-            "learning_rate": 0.0003,
-            "conv_dim": ([64 ,32], 128, 64),
-            "z_dim": 32
-            "action_dim": 
-            "linear_hidden_units": [64, 64],
-            "final_layer_activation": None,
-            "batch_norm": False,
-            "tau": 0.005,
-            "gradient_clipping_norm": 5,
-            "initialiser": "Xavier"
-        },
-
-        "Critic": {
-            "learning_rate": 0.0003,
-            "conv_dim": ([64 ,32], 128, 64),
-            "z_dim": 32,
-            "action_dim": (,[])
-            "linear_hidden_units": [64, 64],
-            "final_layer_activation": None,
-            "batch_norm": False,
-            "buffer_size": 1000000,
-            "tau": 0.005,
-            "gradient_clipping_norm": 5,
-            "initialiser": "Xavier"
-        },
-
-        "min_steps_before_learning": 400,
-        "batch_size": 256,
-        "discount_rate": 0.99,
-        "mu": 0.0, #for O-H noise
-        "theta": 0.15, #for O-H noise
-        "sigma": 0.25, #for O-H noise
-        "action_noise_std": 0.2,  # for TD3
-        "action_noise_clipping_range": 0.5,  # for TD3
-        "update_every_n_steps": 1,
-        "learning_updates_per_learning_session": 1,
-        "automatically_tune_entropy_hyperparameter": True,
-        "entropy_term_weight": None,
-        "add_extra_noise": False,
-        "do_evaluation_iterations": True
-    }
-}
+'''
 
 #Inputs
 # Define some constants

@@ -81,7 +81,8 @@ class SAC(Base_Agent):
         self.episode_step_number_val = 0
         while not self.done:
             self.episode_step_number_val += 1
-            self.action = self.pick_action(eval_ep)
+            print(self.state)
+            self.action = self.pick_action(eval_ep) 
             self.conduct_action(self.action)
             if self.time_for_critic_and_actor_to_learn():
                 for _ in range(self.hyperparameters["learning_updates_per_learning_session"]):
