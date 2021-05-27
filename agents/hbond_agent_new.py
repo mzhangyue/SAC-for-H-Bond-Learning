@@ -8,32 +8,34 @@ from agents.replay_memory import ReplayMemory
 from agents.actor_critic_net import Actor, Critic
 
 class SAC(object):
-    def __init__(self, num_inputs, action_space, hyperparams):
+    def __init__(self, action_space, env, hyperparams):
 
         # Hyperparametres
-        self.gamma = hyperparams["gamma"]
+        self.gamma = hyperparams["discount_rate"]
         self.tau = hyperparams["tau"]
         self.alpha = hyperparams["alpha"]
         self.lr = hyperparams["lr"]
-        self.policy_type = hyperparams["policy_type"]
+        self.policy_type = hyperparams["policy"]
         self.target_update_interval = hyperparams["target_update_interval"]
         self.automatic_entropy_tuning = hyperparams["automatic_entropy_tuning"]
-        self.environment = hyperparams["env"]
+        self.environment = env
         # Layer Hyperparams
         self.node_dim = len(self.environment.features[0])
         self.num_nodes = len(self.environment.features)
         self.edge_dim = 1
         self.input_action_dim = len(self.environment.torsion_ids_to_change)
+        print("We will change", self.input_action_dim, "torsions")
         crit_hyp = hyperparams["Critic"]
         act_hyp = hyperparams["Actor"]
-        self.tensor_shapes = [(self.node_dim, self.num_nodes), (self.num_nodes, self.num_nodes)]
+        self.tensor_shapes = [(self.num_nodes, self.node_dim), (self.num_nodes, self.num_nodes)]
         
         self.device = torch.device("cuda" if hyperparams["cuda"] else "cpu")
 
-        self.critic = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.num_nodes, self.input_action_dim)
+        print("Preparing Critic networks...")
+        self.critic = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
 
-        self.critic_target = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.num_nodes, self.input_action_dim)
+        self.critic_target = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim)
         hard_update(self.critic_target, self.critic)
 
         if self.policy_type == "Gaussian":
@@ -43,7 +45,7 @@ class SAC(object):
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
                 self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
 
-            self.policy = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, act_hyp["z_dim"], self.num_nodes)
+            self.policy = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, self.input_action_dim * 2, action_space=action_space)
             self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
 
         #else:
@@ -75,10 +77,10 @@ class SAC(object):
 
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(next_state_batch, self.tensor_shapes)
-            qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action)
+            qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action, self.tensor_shapes)
             min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
             next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
-        qf1, qf2 = self.critic(state_batch, action_batch)  # Two Q-functions to mitigate positive bias in the policy improvement step
+        qf1, qf2 = self.critic(state_batch, action_batch, self.tensor_shapes)  # Two Q-functions to mitigate positive bias in the policy improvement step
         qf1_loss = F.mse_loss(qf1, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
         qf2_loss = F.mse_loss(qf2, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
         qf_loss = qf1_loss + qf2_loss
@@ -89,7 +91,7 @@ class SAC(object):
 
         pi, log_pi, _ = self.policy.sample(state_batch, self.tensor_shapes)
 
-        qf1_pi, qf2_pi = self.critic(state_batch, pi)
+        qf1_pi, qf2_pi = self.critic(state_batch, pi, self.tensor_shapes)
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean() # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]

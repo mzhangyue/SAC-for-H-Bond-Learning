@@ -1,9 +1,11 @@
+from dgl.nn.pytorch.conv.graphconv import GraphConv
 from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
 from utils import soft_update, hard_update, create_log_gaussian, logsumexp, batch_flat_to_tensors
 import torch.nn.functional as F
 from torch.distributions import Normal
 import torch
 import torch.nn as nn
+from dgl.nn.pytorch.conv import DenseGraphConv, NNConv
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
@@ -22,11 +24,22 @@ class Actor(nn.Module):
         graph_conv_dim, aux_dim, linear_dim = conv_dim
         self.z_dim = z_dim
         
+        ############## MOLGAN CODE ##############
         self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
         self.agg_layer = GraphAggregation(graph_conv_dim[-1], aux_dim, node_dim, dropout)
+        ########################################
+        '''
+        ############### DGL CODE ##############
+        # Store graph neural networks
+        self.gnns = []
+        for hid_dim in graph_conv_dim:
+            self.gnns.append(DenseGraphConv(node_dim, hid_dim, activation=nn.Tanh()))
+        self.aux_linear = nn.Linear(graph_conv_dim[-1], aux_dim)
+        '''
+        # Init MLPs
         self.mlp = MLP(aux_dim, linear_dim, nn.Tanh())
         self.last_layer = nn.Linear(linear_dim[-1], z_dim)
-
+    
         # action rescaling
         if action_space is None:
             self.action_scale = torch.tensor(1.)
@@ -40,15 +53,36 @@ class Actor(nn.Module):
         self.apply(weights_init_)
     
     def forward(self, state, tensor_shapes, hidden=None, activation=None):
-        node, adj = batch_flat_to_tensors(state, tensor_shapes=tensor_shapes)
-        adj = adj[:,:,:,1:].permute(0,3,1,2)
-        input1 = torch.cat((hidden, node), -1) if hidden is not None else node 
+        node, adj = batch_flat_to_tensors(state, tensor_shapes=tensor_shapes) # N x F, N x N
+        
+        ############## MOLGAN CODE ##############
+        adj = adj.unsqueeze(-1)
+        adj = adj[:,:,:, :].permute(0,3,1,2)
+        input1 = torch.cat((hidden, node), -1) if hidden is not None else node
+
         h = self.gcn_layer(input1, adj)
         input1 = torch.cat((h, hidden, node) if hidden is not None else (h, node), -1)
         h = self.agg_layer(input1, torch.tanh)
+        ######################################## 
+        '''       
+        ############### DGL CODE ##############
+        # Apply GNNs
+        h = node
+        print("ADJ", adj.shape)
+        print("H", h.shape)
+        for gnn in self.gnns:
+            h = gnn(adj, h)
+        h = self.aux_linear(h)
+        '''
+        # Apply Linear layers
         h = self.mlp(h)
         h = self.last_layer(h)
-        return h[:, :self.z_dim], h[:, self.z_dim:]
+        # Partition the output to mean and log std
+        action_size = int(self.z_dim/2)
+        mu = h[:, :action_size]
+        log_std =  h[:, action_size:]
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mu, log_std
     
     def sample(self, state, tensor_shapes):
         mean, log_std = self.forward(state, tensor_shapes)
@@ -71,9 +105,10 @@ class Actor(nn.Module):
 
 # Each critic consists of two qnets
 class Critic(nn.Module):
-    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, num_nodes, input_action_dim, dropout=0):
-        self.critic1 = QNet(conv_dim, node_dim, edge_dim, z_dim, action_dim, num_nodes, input_action_dim, dropout=0)
-        self.critic2 = QNet(conv_dim, node_dim, edge_dim, z_dim, action_dim, num_nodes, input_action_dim, dropout=0)
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0):
+        super(Critic, self).__init__()
+        self.critic1 = QNet(conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0)
+        self.critic2 = QNet(conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0)
         self.apply(weights_init_)
     
     def forward(self, state, action, tensor_shapes):
@@ -91,34 +126,57 @@ class QNet(nn.Module):
     # z_dim (int): Final layer for state processing
     # action_dim ([int]): linear_dims for MLPs processing action
 
-    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, num_nodes, input_action_dim, dropout=0):
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0):
         super(QNet, self).__init__()
         graph_conv_dim, aux_dim, linear_dim = conv_dim
         self.node_dim = node_dim
         self.input_action_dim = input_action_dim
+
+        ###### MOLGAN ####
         # Process State
         self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
         self.agg_layer = GraphAggregation(graph_conv_dim[-1], aux_dim, node_dim, dropout)
+        
+        '''
+        ############### DGL CODE ##############
+        # Store graph neural networks
+        self.gnns = []
+        for hid_dim in graph_conv_dim:
+            self.gnns.append(DenseGraphConv(node_dim, hid_dim, activation=nn.Tanh()))
+        self.aux_linear = nn.Linear(graph_conv_dim[-1], aux_dim)
+        ##################################
+        '''
+        # Init linear layers
         self.mlp = MLP(aux_dim, linear_dim, nn.Tanh())
         self.last_state_layer = nn.Linear(linear_dim[-1], z_dim)
-        # Processes action
+        # Processes action with linear layers
         self.action_mlp = MLP(self.input_action_dim, action_dim, nn.Tanh())
-        # Processes action and state
+        # Processes action and state with linear layers
         self.last_layer = nn.Linear(action_dim[-1] + z_dim, 1)
     
     # adj is the adjacency matrix while node is the feature matrix
     def forward(self, state, action, tensor_shapes, hidden=None, activation=None):
         node, adj = batch_flat_to_tensors(state, tensor_shapes=tensor_shapes)
+    
+        ########## MOLGAN ########
+        adj = adj.unsqueeze(-1)
         # Process state        
-        adj = adj[:,:,:,1:].permute(0,3,1,2)
+        adj = adj[:,:,:, :].permute(0,3,1,2)
         input1 = torch.cat((hidden, node), -1) if hidden is not None else node
         h = self.gcn_layer(input1, adj)
         input1 = torch.cat((h, hidden, node) if hidden is not None else (h, node), -1)
         h = self.agg_layer(input1, torch.tanh)
+        '''    
+        h = node
+        for gnn in self.gnns:
+            h = gnn(adj, h)
+        # Apply Linear layers
+        h = self.aux_linear(h)
+        '''
         h = self.mlp(h)
         h = self.last_state_layer(h)
         # Process action
         h2 = self.action_mlp(action)
         # Concatenate procesed state and action and process both
-        h2 = torch.cat((h , h2))
+        h2 = torch.cat((h , h2), 1)
         return self.last_layer(h2)

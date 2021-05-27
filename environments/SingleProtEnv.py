@@ -44,7 +44,7 @@ class SingleProtEnv(gym.Env):
         self.action_space = spaces.Box(
             low=self.min_action,
             high=self.max_action,
-            shape=(self.torsion_ids_to_change,),
+            shape=(len(self.torsion_ids_to_change),),
             dtype=np.float32
         )
         num_atoms, num_features = np.shape(self.features)
@@ -68,8 +68,9 @@ class SingleProtEnv(gym.Env):
     
     # Applies action to the environment, transitions to next state, and returns reward
     def apply_action(self, angle_change, save=True):
+        angle_change = np.tanh(angle_change)
         if save:
-            self.prot.write_to_pdb("./results/" + self.prot.pdb_name + str(self.time_step) + ".pdb")
+            self.prot.write_to_pdb("./results/pdbs/" + self.prot.pdb_name + str(self.time_step) + ".pdb")
         # Perturb torsion angles by angle change to transition to next state
         self.prot.perturb_torsion_ids(self.torsion_ids_to_change, angle_change)
         self.prot.update_cart_coords()
@@ -94,10 +95,11 @@ class SingleProtEnv(gym.Env):
     # Computes $r(s_t, a_t) \gets e^{\gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t]$
     def get_reward(self, angle_change):
         # e^{\gamma t/T}
-        exp_term = torch.exp(self.discount_rate * self.time_step / self.discount_rate_threshold)
+        exp_term = np.exp(self.discount_rate * self.time_step / self.discount_rate_threshold)
         energy = self.prot.get_score() # E_t
         # \gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t
-        return exp_term * (torch.sum(angle_change ** 2)/2 - energy)
+        return -energy
+        #return exp_term * (np.sum(angle_change ** 2)/2 - energy)
 
     # Checks if we are in terminal state
     def is_terminal_state(self):
@@ -112,13 +114,14 @@ class SingleProtEnv(gym.Env):
         self.prot.sample_bbind_rotamers()
         self.prot.update_cart_coords()
         self.update_adj_mat()
-        return
+        return self.get_state()
         
     # Returns the next state
     def step(self, action):
         reward = self.apply_action(action)
         state = self.get_state()
-        done = self.is_terminal_state()
+        #done = self.is_terminal_state()
+        done = False
         return state, reward, done, {}
 
     # Render hbond net as a string

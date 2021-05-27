@@ -252,7 +252,7 @@ class Prot:
         return bond_adj_list
     
     # The adjacency matrix showing which atoms are bonded to which atoms
-    def get_bond_adj_mat(self, self_neighbors=False):
+    def get_bond_adj_mat(self, self_neighbors=True):
         bond_adj_list = []
         # Loop through all residues
         for atom_id in self.atom_ids:
@@ -593,7 +593,7 @@ class Prot:
     ################# ATOMWISE CHEMICAL FEATURES #################
     
     # Generates atom features using Rosetta
-    # Each atom has the following features in this order
+    # Each atom has the following 13 features in this order
     # 1. X Y Z (length 3)
     # 1. The atom element name (or one hot encoding of it (length 5))
     # 2. The atom the lj radius
