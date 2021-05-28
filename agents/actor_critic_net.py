@@ -1,11 +1,10 @@
-from dgl.nn.pytorch.conv.graphconv import GraphConv
 from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
 from utils import soft_update, hard_update, create_log_gaussian, logsumexp, batch_flat_to_tensors
 import torch.nn.functional as F
 from torch.distributions import Normal
 import torch
 import torch.nn as nn
-from dgl.nn.pytorch.conv import DenseGraphConv, NNConv
+
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20

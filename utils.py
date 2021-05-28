@@ -48,8 +48,6 @@ def normalize_angle(angle, in_degrees=True):
         if (angle > math.pi):
             angle -= 2*math.pi
     
-        
-
 # Converts a list of torch tensors to one long unbatched flat tensor
 # tensors ([tensors]): iterable of tensors 
 def tensors_to_flat(tensors):
@@ -102,6 +100,17 @@ def batch_flat_to_tensors(flat_tensor, tensor_shapes):
         start_dim += total_dim
     return tuple(unflattened_tensors)
 
+# Append new pdb to current pdb file
+def append_pdb(new_pdb, cur_pdb_file):
+    with open(cur_pdb_file, "a") as writer:
+        new_pdb_file = open(new_pdb, "r")
+        for line in new_pdb_file:
+            # Only write the ATOM coordinate lines and END
+            if line.startswith("ATOM") or line.startswith("TER") or line.startswith("END"):
+                writer.write(line)
+        writer.write("END\n")
+        new_pdb_file.close()
+        
 # Combine multiple PDBsinto one pdb file
 def combine_pdbs(pdb_files, output_file):
     with open(output_file, "w") as writer:

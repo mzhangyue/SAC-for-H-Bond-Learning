@@ -120,7 +120,7 @@ class SAC(object):
         return qf1_loss.item(), qf2_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_tlogs.item()
 
     # Save model parameters
-    def save_model(self, env_name, suffix="", actor_path=None, critic_path=None):
+    def save_model(self, env_name, suffix="", actor_path=None, critic_path=None, critic_target_path=None):
         if not os.path.exists('models/'):
             os.makedirs('models/')
 
@@ -128,9 +128,12 @@ class SAC(object):
             actor_path = "models/sac_actor_{}_{}".format(env_name, suffix)
         if critic_path is None:
             critic_path = "models/sac_critic_{}_{}".format(env_name, suffix)
-        print('Saving models to {} and {}'.format(actor_path, critic_path))
+        if critic_target_path is None:
+            critic_target_path = "models/sac_critic_{}_{}".format(env_name, suffix)
+        #print('Saving models to {} and {}'.format(actor_path, critic_path))
         torch.save(self.policy.state_dict(), actor_path)
         torch.save(self.critic.state_dict(), critic_path)
+        torch.save(self.critic_target.state_dict(), critic_target_path)
 
     # Load model parameters
     def load_model(self, actor_path, critic_path):

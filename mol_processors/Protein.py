@@ -2,8 +2,6 @@
 import random
 from utils import write_array
 from Octree.octree import Protein
-from pympler import asizeof, tracker, refbrowser
-from memory_profiler import profile
 import MDAnalysis as mda
 from MDAnalysis.coordinates.memory import MemoryReader
 # Rosetta imports
@@ -100,7 +98,7 @@ class Prot:
         self.atom_chem_features = self.generate_chemical_features()
         self.update_cart_coords()
         # Set the scoring functon
-        self.score_function = get_score_function(True)
+        self.score_function = self.set_score_function(only_hbond=False)
         self.score_function.setup_for_packing(self.pose, self.pack_task.repacking_residues(), self.pack_task.designing_residues())
         # Set up packer graph now that score function is set
         self.pack_graph = create_packer_graph(self.pose, self.score_function, self.pack_task)
@@ -339,6 +337,7 @@ class Prot:
             sfxn.set_weight(ScoreType.hbond_sr_bb, 1.0)
             sfxn.set_weight(ScoreType.hbond_bb_sc, 1.0)
             sfxn.set_weight(ScoreType.hbond_sc, 1.0)
+            return sfxn
         else:
             return get_score_function(True)
     
@@ -439,6 +438,15 @@ class Prot:
     def sample_rama_backbone_dihedrals(self):
         RandomizeBBByRamaPrePro().apply(self.pose)
         return
+    
+    def sample_backbone_uniform(self):
+        for res_index in range(1, self.num_residues + 1):
+            new_phi = random.uniform(-180, 180)
+            new_psi = random.uniform(-180, 180)
+            self.set_phi_angle(res_index, new_phi)
+            self.set_phi_angle(res_index, new_psi)
+        return
+
 
     ################# SIDECHAIN DIHEDRALS (CHI) ROTAMERS #################
 
