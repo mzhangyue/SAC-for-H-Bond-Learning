@@ -29,10 +29,10 @@ psf_file = PDB_DIR + "1bdd_pdb2pqr_charmm.psf"
 # Hyperparameters
 hyperparameters =  {
     "output_model": "./results/hbond_agent_model",
-    "cuda": False,
+    "cuda": torch.cuda.is_available(),
     "replay_size": 10000000,
     "seed": 123456,
-    "start_steps": 400, # Num steps until we start sampling
+    "start_steps": 1000, # Num steps until we start sampling
     "batch_size": 256,
     "updates_per_step": 1,
     "num_steps": 100000, # Max total number of time steps
@@ -45,14 +45,15 @@ hyperparameters =  {
     "target_update_interval": 1,
     "env_name": "SingleProtEnv",
     "automatic_entropy_tuning": True,
-    "output_pdb": "./results/AA/AA.pdb",
+    "output_pdb": "./results/AA/AA_my_reward.pdb",
+    "output_pdb_test": "./results/AA/AA_test.pdb",
     "Env": {
-        "torsions_to_change": "all",
+        "torsions_to_change": "all", # all, backbone, or sidechain
         "adj_mat_type": "bonded", 
         "step_size": 0.5,
         "discount_rate": 1,
         "discount_rate_threshold": 100,
-        "max_time_step": 100  # Maximum time step for each episode
+        "max_time_step": 300  # Maximum time step for each episode
     },
     "Actor": {
         "conv_dim":[[4 ,16], 128, [32, 64]],
@@ -76,6 +77,7 @@ automatic_entropy_tuning = hyperparameters["automatic_entropy_tuning"]
 env_name = hyperparameters["env_name"]
 do_eval = hyperparameters["eval"]
 output_model_file = hyperparameters["output_model"]
+output_pdb_test = hyperparameters["output_pdb_test"]
 
 # Init Rosetta
 init()
@@ -143,13 +145,14 @@ for i_episode in itertools.count(1):
     if total_numsteps > num_steps:
         break
 
+
     logging.info("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
-    # Evaluate Agent
+    # Evaluate Agent and save to VMD
     if i_episode % 10 == 0 and do_eval is True:
         avg_reward = 0.
         episodes = 10
         for _  in range(episodes):
-            state = env.reset()
+            state = env.reset(new_output=output_pdb_test)
             episode_reward = 0
             done = False
             while not done:
@@ -168,5 +171,8 @@ for i_episode in itertools.count(1):
         logging.info("----------------------------------------")
         logging.info("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         logging.info("----------------------------------------")
+    
+    # Save model one last time before finished
+    agent.save_model("SingleProEnv")
 
 env.close()

@@ -20,8 +20,8 @@ class SAC(object):
         self.automatic_entropy_tuning = hyperparams["automatic_entropy_tuning"]
         self.environment = env
         # Layer Hyperparams
-        self.node_dim = len(self.environment.features[0])
-        self.num_nodes = len(self.environment.features)
+        self.node_dim = len(self.environment.prot.atom_chem_features[0])
+        self.num_nodes = len(self.environment.prot.atom_chem_features)
         self.edge_dim = 1
         self.input_action_dim = len(self.environment.torsion_ids_to_change)
         print("We will change", self.input_action_dim, "torsions")
@@ -32,10 +32,10 @@ class SAC(object):
         self.device = torch.device("cuda" if hyperparams["cuda"] else "cpu")
 
         print("Preparing Critic networks...")
-        self.critic = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim)
+        self.critic = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim).to(self.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
 
-        self.critic_target = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim)
+        self.critic_target = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim).to(self.device)
         hard_update(self.critic_target, self.critic)
 
         if self.policy_type == "Gaussian":
@@ -45,7 +45,7 @@ class SAC(object):
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
                 self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
 
-            self.policy = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, self.input_action_dim * 2, action_space=action_space)
+            self.policy = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, self.input_action_dim * 2, action_space=action_space).to(self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
 
         #else:

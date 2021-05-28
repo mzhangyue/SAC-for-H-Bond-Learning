@@ -44,7 +44,7 @@ class SingleProtEnv(gym.Env):
             shape=(len(self.torsion_ids_to_change),),
             dtype=np.float32
         )
-        num_atoms, num_features = np.shape(self.features)
+        num_atoms, num_features = np.shape(self.prot.atom_chem_features)
         # Sets the dims of the observation space (num_atoms x (num_features + num_atoms))
         self.observation_space = spaces.Box(
             low=self.low_state,
@@ -96,9 +96,11 @@ class SingleProtEnv(gym.Env):
         # e^{\gamma t/T}
         #term = (self.time_step/self.discount_rate_threshold)**3
         exp_term = np.exp(self.discount_rate * self.time_step / self.discount_rate_threshold)
+        old_score = self.cur_score
         self.cur_score = self.prot.get_score() # E_t
         # \gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t
-        # Reward self.t
+        # Reward
+        return -(self.cur_score - old_score) 
         return exp_term * (np.sum(angle_change ** 2)/2 - 0.03*self.cur_score)
 
 
