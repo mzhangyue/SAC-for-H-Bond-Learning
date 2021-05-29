@@ -7,6 +7,7 @@ import gym
 from gym import spaces
 from gym.utils import seeding
 import math
+import wandb
 
 
 class SingleProtEnv(gym.Env):
@@ -24,6 +25,7 @@ class SingleProtEnv(gym.Env):
         self.max_time_step = hyperparameters["max_time_step"]
         # Set time step
         self.time_step = 0
+        self.total_step = 0
         self.output_pdb = None
         # Initialize protein
         self.prot = Prot(pdb_file, psf_file, mol2_file, prm_file, rtf_file, aprm_file, pdb_id, seq=seq)
@@ -69,6 +71,7 @@ class SingleProtEnv(gym.Env):
         # Save the each time step
         if save and self.output_pdb != None:
             self.prot.write_to_pdb("./results/temp.pdb")
+            wandb.log({"protein" + str(self.total_step): wandb.Molecule(open("./results/temp.pdb"))})
             append_pdb("./results/temp.pdb", self.output_pdb)
 
         # Perturb torsion angles by angle change to transition to next state
@@ -80,6 +83,7 @@ class SingleProtEnv(gym.Env):
         reward = self.get_reward(angle_change)
         # Increment time step
         self.time_step += 1
+        self.total_step += 1
         return reward
 
     # Returns the state which consists of
@@ -100,7 +104,7 @@ class SingleProtEnv(gym.Env):
         self.cur_score = self.prot.get_score() # E_t
         # \gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t
         # Reward
-        return -(self.cur_score - old_score) 
+        #return -(self.cur_score - old_score) 
         return exp_term * (np.sum(angle_change ** 2)/2 - 0.03*self.cur_score)
 
 

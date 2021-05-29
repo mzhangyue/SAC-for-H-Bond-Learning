@@ -4,3 +4,4 @@ __pycache__/
 .vscode/
 experiments/results/
 experiments/runs/
+experiments/wandb/

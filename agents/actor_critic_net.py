@@ -17,11 +17,12 @@ def weights_init_(m):
         nn.init.constant_(m.bias, 0)
 
 class Actor(nn.Module):
-    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_space=None, dropout=0):
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, tensor_shapes, action_space=None, dropout=0):
         super(Actor, self).__init__()
         # Store dims
         graph_conv_dim, aux_dim, linear_dim = conv_dim
         self.z_dim = z_dim
+        self.tensor_shapes = tensor_shapes
         
         ############## MOLGAN CODE ##############
         self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
@@ -51,9 +52,8 @@ class Actor(nn.Module):
         
         self.apply(weights_init_)
     
-    def forward(self, state, tensor_shapes, hidden=None, activation=None):
-        node, adj = batch_flat_to_tensors(state, tensor_shapes=tensor_shapes) # N x F, N x N
-        
+    def forward(self, state, hidden=None, activation=None):
+        node, adj = batch_flat_to_tensors(state, tensor_shapes=self.tensor_shapes) # N x F, N x N
         ############## MOLGAN CODE ##############
         adj = adj.unsqueeze(-1)
         adj = adj[:,:,:, :].permute(0,3,1,2)
@@ -83,8 +83,8 @@ class Actor(nn.Module):
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         return mu, log_std
     
-    def sample(self, state, tensor_shapes):
-        mean, log_std = self.forward(state, tensor_shapes)
+    def sample(self, state):
+        mean, log_std = self.forward(state)
         std = log_std.exp()
         normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -104,15 +104,16 @@ class Actor(nn.Module):
 
 # Each critic consists of two qnets
 class Critic(nn.Module):
-    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0):
+    def __init__(self, conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, tensor_shapes, dropout=0):
         super(Critic, self).__init__()
+        self.tensor_shapes = tensor_shapes
         self.critic1 = QNet(conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0)
         self.critic2 = QNet(conv_dim, node_dim, edge_dim, z_dim, action_dim, input_action_dim, dropout=0)
         self.apply(weights_init_)
     
-    def forward(self, state, action, tensor_shapes):
-        x1 = self.critic1(state, action, tensor_shapes)
-        x2 = self.critic1(state, action, tensor_shapes)
+    def forward(self, state, action):
+        x1 = self.critic1(state, action, self.tensor_shapes)
+        x2 = self.critic1(state, action, self.tensor_shapes)
         return x1, x2
 
 class QNet(nn.Module):
