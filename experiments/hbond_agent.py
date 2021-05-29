@@ -50,8 +50,8 @@ hyperparameters =  {
     "target_update_interval": 1,
     "env_name": "SingleProtEnv",
     "automatic_entropy_tuning": True,
-    "output_pdb": "./results/AA/AA_my_reward.pdb", # Output pdb of training episodes
-    "output_pdb_test": "./results/AA/AA_test.pdb", # Output pdb of testing episodes
+    "output_pdb": "./results/AA/AA_dynamite.pdb", # Output pdb of training episodes
+    "output_pdb_test": "./results/AA/AA_dynamite_test.pdb", # Output pdb of testing episodes
     "Env": {
         "torsions_to_change": "all", # all, backbone, or sidechain
         "adj_mat_type": "bonded", 
@@ -87,7 +87,7 @@ output_pdb_test = hyperparameters["output_pdb_test"]
 wandb_allowed = True
 
 # Init Wandb
-mode = "online" if wandb_allowed else "disabled"
+mode = "offline" if wandb_allowed else "disabled"
 project_name = "Sidechain Packing"
 run_name = "run_" + datetime.now().strftime("%m:%d:%Y:%H:%M:%S")
 group = "Dialanine"
@@ -114,13 +114,13 @@ memory = ReplayMemory(replay_size, seed)
 total_numsteps = 0
 updates = 0
 # Store network topology in ONNX
-dummy_state = torch.rand(1, agent.num_nodes * (agent.node_dim + agent.num_nodes))
-dummy_action = torch.rand(1, agent.input_action_dim)
-agent.save_model('SingleProtEnv', suffix='.onnx', actor_input=(dummy_state), critic_input=(dummy_state, dummy_action))
-wandb.save("./models/sac_actor_SingleProtEnv_.onnx")
-wandb.save("./models/sac_critic_SingleProtEnv_.onnx")
-del dummy_state
-del dummy_action
+#dummy_state = torch.rand(1, agent.num_nodes * (agent.node_dim + agent.num_nodes))
+#dummy_action = torch.rand(1, agent.input_action_dim)
+#agent.save_model('SingleProtEnv', suffix='.onnx', actor_input=(dummy_state), critic_input=(dummy_state, dummy_action))
+#wandb.save("./models/sac_actor_SingleProtEnv_.onnx")
+#wandb.save("./models/sac_critic_SingleProtEnv_.onnx")
+#del dummy_state
+#del dummy_action
 
 # Loop through episodes
 lowest_energy = np.finfo(np.float32).max
