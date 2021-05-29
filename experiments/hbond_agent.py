@@ -34,7 +34,7 @@ psf_file = PDB_DIR + "1bdd_pdb2pqr_charmm.psf"
 # Hyperparameters
 hyperparameters =  {
     "output_model": "./results/hbond_agent_model",
-    "cuda": torch.cuda.is_available(),
+    "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     "replay_size": 10000000,
     "seed": 123456,
     "start_steps": 1000, # Num steps until we start sampling
@@ -83,11 +83,12 @@ env_name = hyperparameters["env_name"]
 do_eval = hyperparameters["eval"]
 output_model_file = hyperparameters["output_model"]
 output_pdb_test = hyperparameters["output_pdb_test"]
+device = hyperparameters["device"]
 
 wandb_allowed = True
 
 # Init Wandb
-mode = "offline" if wandb_allowed else "disabled"
+mode = "online" if wandb_allowed else "disabled"
 project_name = "Sidechain Packing"
 run_name = "run_" + datetime.now().strftime("%m:%d:%Y:%H:%M:%S")
 group = "Dialanine"
@@ -113,14 +114,15 @@ memory = ReplayMemory(replay_size, seed)
 # Training Loop
 total_numsteps = 0
 updates = 0
+global_wandb_step = 0
 # Store network topology in ONNX
-#dummy_state = torch.rand(1, agent.num_nodes * (agent.node_dim + agent.num_nodes))
-#dummy_action = torch.rand(1, agent.input_action_dim)
-#agent.save_model('SingleProtEnv', suffix='.onnx', actor_input=(dummy_state), critic_input=(dummy_state, dummy_action))
-#wandb.save("./models/sac_actor_SingleProtEnv_.onnx")
-#wandb.save("./models/sac_critic_SingleProtEnv_.onnx")
-#del dummy_state
-#del dummy_action
+dummy_state = torch.rand(1, agent.num_nodes * (agent.node_dim + agent.num_nodes)).to(device)
+dummy_action = torch.rand(1, agent.input_action_dim).to(device)
+agent.save_model('SingleProtEnv', suffix='.onnx', actor_input=(dummy_state), critic_input=(dummy_state, dummy_action))
+wandb.save("./models/sac_actor_SingleProtEnv_.onnx")
+wandb.save("./models/sac_critic_SingleProtEnv_.onnx")
+del dummy_state
+del dummy_action
 
 # Loop through episodes
 lowest_energy = np.finfo(np.float32).max
@@ -175,12 +177,7 @@ for i_episode in itertools.count(1):
         lowest_energy = env.cur_score
         
     print("Final Energy: {}".format(env.cur_score))
-    wandb.log({"train_delta_energy": env.cur_score - init_energy, "train_cum_reward": episode_reward, "episode": i_episode}, step=total_numsteps)
-    
-    # Stop when we reach the max total steps
-    if total_numsteps > num_steps:
-        break
-
+    wandb_log_dict = {"train_delta_energy": env.cur_score - init_energy, "train_cum_reward": episode_reward, "episode": i_episode}
 
     print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
     # Evaluate Agent and save to VMD
@@ -205,15 +202,23 @@ for i_episode in itertools.count(1):
             avg_energy_change += env.cur_score - init_energy
         avg_reward /= episodes
         avg_energy_change /= episodes
-
-
+    
 
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("----------------------------------------")
-        wandb.log({"test_delta_energy": avg_energy_change, "eval_avg_reward": avg_reward}, step=total_numsteps)
+        wandb_log_dict["test_delta_energy"] = avg_energy_change
+        wandb_log_dict["eval_avg_reward"] = avg_reward
+        
+    # Log metrics
+    wandb.log(wandb_log_dict, step=total_numsteps)
+
+    # Stop when we reach the max total steps
+    if total_numsteps > num_steps:
+        break
     
     # Save model one last time before finished
     agent.save_model("SingleProtEnv")
+    global_wandb_step += 1
 
 env.close()

@@ -71,7 +71,6 @@ class SingleProtEnv(gym.Env):
         # Save the each time step
         if save and self.output_pdb != None:
             self.prot.write_to_pdb("./results/temp.pdb")
-            wandb.log({"protein" + str(self.total_step): wandb.Molecule(open("./results/temp.pdb"))})
             append_pdb("./results/temp.pdb", self.output_pdb)
 
         # Perturb torsion angles by angle change to transition to next state

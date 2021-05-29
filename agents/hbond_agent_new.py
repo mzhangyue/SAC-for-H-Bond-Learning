@@ -1,6 +1,7 @@
 import os
-import torch
+import torch.nn as nn
 import torch.nn.functional as F
+import torch
 from torch.optim import Adam
 from utils import soft_update, hard_update, create_log_gaussian, logsumexp
 from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
@@ -29,7 +30,7 @@ class SAC(object):
         act_hyp = hyperparams["Actor"]
         self.tensor_shapes = [(self.num_nodes, self.node_dim), (self.num_nodes, self.num_nodes)]
         
-        self.device = torch.device("cuda" if hyperparams["cuda"] else "cpu")
+        self.device = hyperparams['device']
 
         print("Preparing Critic networks...")
         self.critic = Critic(crit_hyp["conv_dim"], self.node_dim, self.edge_dim, crit_hyp["z_dim"], crit_hyp["action_dim"], self.input_action_dim, self.tensor_shapes).to(self.device)
