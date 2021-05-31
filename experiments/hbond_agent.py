@@ -86,7 +86,8 @@ output_pdb_test = hyperparameters["output_pdb_test"]
 device = hyperparameters["device"]
 
 wandb_allowed = True
-
+# Print Num Gpus
+print("We have", torch.cuda.device_count(), "GPUs")
 # Init Wandb
 mode = "online" if wandb_allowed else "disabled"
 project_name = "Sidechain Packing"
@@ -177,7 +178,7 @@ for i_episode in itertools.count(1):
         lowest_energy = env.cur_score
         
     print("Final Energy: {}".format(env.cur_score))
-    wandb_log_dict = {"train_delta_energy": env.cur_score - init_energy, "train_cum_reward": episode_reward, "episode": i_episode}
+    wandb_log_dict = {"train_delta_energy": env.cur_score - init_energy, "train_cum_reward": episode_reward, "init_energy": init_energy, "episode": i_episode}
 
     print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
     # Evaluate Agent and save to VMD
