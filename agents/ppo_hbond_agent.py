@@ -8,13 +8,14 @@ from utils import soft_update, hard_update, create_log_gaussian, logsumexp
 from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
 from utilities.replay_memory import ReplayMemory
 from agents.actor_critic_net import Actor, Critic
+from utilities.RolloutBuffer import Rollout
 
 # PPO as implemented in the paper https://arxiv.org/pdf/1707.06347.pdf
 
 # Refines a protein using PPO
 class PPOHbondAgent():
     # 
-    def __init__():
+    def __init__(self, env, hyperparams):
         # Store Hyperparameters for learning
         self.gamma = hyperparams["discount_rate"]
         self.tau = hyperparams["tau"]
@@ -24,9 +25,12 @@ class PPOHbondAgent():
         self.target_update_interval = hyperparams["target_update_interval"]
         self.automatic_entropy_tuning = hyperparams["automatic_entropy_tuning"]
         self.environment = env
+        self.eps_clip = hyperparams["eps_clip"]
         self.device = hyperparams['device']
+        
         crit_hyp = hyperparams["Critic"]
         act_hyp = hyperparams["Actor"]
+
         # Store Dimensions  t
         self.node_dim = len(self.environment.prot.atom_chem_features[0])
         self.num_nodes = len(self.environment.prot.atom_chem_features)
@@ -41,32 +45,72 @@ class PPOHbondAgent():
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
         print("Preparing Actor network")
         self.policy = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, self.input_action_dim * 2, self.tensor_shapes, action_space=action_space).to(self.device)
+        self.policy_old = Actor(act_hyp["conv_dim"], self.node_dim, self.edge_dim, self.input_action_dim * 2, self.tensor_shapes, action_space=action_space).to(self.device)
+        self.policy_old.load_state_dict(self.policy.state_dict())
         self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
         return
     
     # Choose an action depending on the state
     def select_action(self, state):
         state = torch.FloatTensor(state).to(self.device).unsqueeze(0) # Unsqueeze batch dim
-        action, log_prob, _ = self.sample(state)
+        action, log_prob, _ = self.policy.sample(state)
         return action
 
     # Calculates the losses and update the parameters of the network
     def update_parameters(self, buffer):        
-        # Sample a batch from the replay buffer
-        state_batch, action_batch, reward_batch, next_state_batch, mask_batch = memory.sample(batch_size=batch_size)
+        # Monte Carlo estimate of returns
+        rewards = []
+        discounted_reward = 0
+        for reward, is_terminal in zip(reversed(buffer.rewards), reversed(self.buffer.is_terminals)):
+            if is_terminal:
+                discounted_reward = 0
+            discounted_reward = reward + (self.gamma * discounted_reward)
+            rewards.insert(0, discounted_reward)
+            
+        # Normalizing the rewards
+        rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
 
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
-        action_batch = torch.FloatTensor(action_batch).to(self.device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
-        mask_batch = torch.FloatTensor(mask_batch).to(self.device).unsqueeze(1)
+        # convert list to tensor
+        old_states = torch.squeeze(torch.stack(buffer.states, dim=0)).detach().to(self.device)
+        old_actions = torch.squeeze(torch.stack(buffer.actions, dim=0)).detach().to(self.device)
+        old_logprobs = torch.squeeze(torch.stack(buffer.logprobs, dim=0)).detach().to(self.device)
 
-        # Calculate the ratio
-        ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
-        surr1 = ratio * adv_targ
-        surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
-                            1.0 + self.clip_param) * adv_targ
-        action_loss = -torch.min(surr1, surr2).mean()
+        
+        # Optimize policy for some epochs
+        for _ in range(100):
+
+            # Evaluating old actions and values
+            _, logprobs, mean = self.policy.sample(old_states, old_actions)
+            state_values, _ = self.critic(old_states)
+            dist_entropy = -torch.sum(logprobs * mean)
+            
+            # match state_values tensor dimensions with rewards tensor
+            state_values = torch.squeeze(state_values)
+            
+            # Finding the ratio (pi_theta / pi_theta__old)
+            ratios = torch.exp(logprobs - old_logprobs.detach())
+
+            # Finding Surrogate Loss
+            advantages = rewards - state_values.detach()   
+            surr1 = ratios * advantages
+            surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
+
+            # final loss of clipped objective PPO
+            loss = -torch.min(surr1, surr2) + 0.5 * F.mse_loss(state_values, rewards) - 0.01 * dist_entropy
+            
+            # take gradient step
+            self.critic_optim.zero_grad()
+            self.policy_optim.zero_grad()
+            loss.mean().backward()
+            self.critic_optim.step()
+            self.policy_optim.step()
+            
+        # Copy new weights into old policy
+        self.policy_old.load_state_dict(self.policy.state_dict())
+
+        # clear buffer
+        buffer.clear()
         return
 
     # Save model parameters
