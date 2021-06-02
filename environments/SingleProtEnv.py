@@ -103,8 +103,8 @@ class SingleProtEnv(gym.Env):
         self.cur_score = self.prot.get_score() # E_t
         # \gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t
         # Reward
-        #return -(self.cur_score - old_score) 
-        return exp_term * (np.sum(angle_change ** 2)/2 - 0.03*self.cur_score)
+        return -(self.cur_score - old_score) 
+        #return exp_term * (np.sum(angle_change ** 2)/2 - 0.03*self.cur_score)
 
 
     # Checks if we are in terminal state

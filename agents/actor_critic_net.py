@@ -28,14 +28,6 @@ class Actor(nn.Module):
         self.gcn_layer = GraphConvolution(node_dim, graph_conv_dim, edge_dim, dropout)
         self.agg_layer = GraphAggregation(graph_conv_dim[-1], aux_dim, node_dim, dropout)
         ########################################
-        '''
-        ############### DGL CODE ##############
-        # Store graph neural networks
-        self.gnns = []
-        for hid_dim in graph_conv_dim:
-            self.gnns.append(DenseGraphConv(node_dim, hid_dim, activation=nn.Tanh()))
-        self.aux_linear = nn.Linear(graph_conv_dim[-1], aux_dim)
-        '''
         # Init MLPs
         self.mlp = MLP(aux_dim, linear_dim, nn.Tanh())
         self.last_layer = nn.Linear(linear_dim[-1], z_dim)
@@ -63,16 +55,6 @@ class Actor(nn.Module):
         input1 = torch.cat((h, hidden, node) if hidden is not None else (h, node), -1)
         h = self.agg_layer(input1, torch.tanh)
         ######################################## 
-        '''       
-        ############### DGL CODE ##############
-        # Apply GNNs
-        h = node
-        print("ADJ", adj.shape)
-        print("H", h.shape)
-        for gnn in self.gnns:
-            h = gnn(adj, h)
-        h = self.aux_linear(h)
-        '''
         # Apply Linear layers
         h = self.mlp(h)
         h = self.last_layer(h)

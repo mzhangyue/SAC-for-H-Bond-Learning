@@ -16,7 +16,7 @@ import torch
 from pyrosetta import *
 # Import custom modules
 from environments.SingleProtEnv import SingleProtEnv
-from agents.replay_memory import ReplayMemory 
+from utilities.replay_memory import ReplayMemory 
 from agents.hbond_agent_new import SAC
 
 #Inputs
@@ -50,8 +50,8 @@ hyperparameters =  {
     "target_update_interval": 1,
     "env_name": "SingleProtEnv",
     "automatic_entropy_tuning": True,
-    "output_pdb": "./results/AA/AA_dynamite.pdb", # Output pdb of training episodes
-    "output_pdb_test": "./results/AA/AA_dynamite_test.pdb", # Output pdb of testing episodes
+    "output_pdb": "./results/AA/AA_energy_reward_dynamite.pdb", # Output pdb of training episodes
+    "output_pdb_test": "./results/AA/AA_energy_reward_dynamite_test.pdb", # Output pdb of testing episodes
     "Env": {
         "torsions_to_change": "all", # all, backbone, or sidechain
         "adj_mat_type": "bonded", 
@@ -61,12 +61,12 @@ hyperparameters =  {
         "max_time_step": 300  # Maximum time step for each episode
     },
     "Actor": {
-        "conv_dim":[[4 ,16], 128, [32, 64]],
+        "conv_dim":[[4 ,16], 128, [32, 64]], # Graph Convolution hidden dims, Aggregation output layer, MLP linear layers
     },
     "Critic": {
         "conv_dim":[[4 ,16], 128, [32, 64]],
-        "z_dim": 8,
-        "action_dim": [32, 32]
+        "z_dim": 8, # Output linear layer for processing state
+        "action_dim": [32, 32] # MLP layer hidden dims to process actions
     }
 }
 # Extract hyperparams
@@ -107,13 +107,15 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 # Init Agent
 agent = SAC(env.action_space, env, hyperparameters)
-wandb.watch(agent.policy, log='all') # Log parameters and gradients of actor and critic
-wandb.watch(agent.critic, log='all')
+wandb.watch(agent.policy, log='gradients') # Log parameters and gradients of actor and critic
+wandb.watch(agent.critic, log='gradients')
 # Init Memory
 memory = ReplayMemory(replay_size, seed)
 
 # Training Loop
 total_numsteps = 0
+total_eval_numsteps = 0
+eval_iepisode = 0
 updates = 0
 global_wandb_step = 0
 # Store network topology in ONNX
@@ -178,13 +180,15 @@ for i_episode in itertools.count(1):
         lowest_energy = env.cur_score
         
     print("Final Energy: {}".format(env.cur_score))
-    wandb_log_dict = {"train_delta_energy": env.cur_score - init_energy, "train_cum_reward": episode_reward, "init_energy": init_energy, "episode": i_episode}
+    wandb_log_dict = {"train_final_energy": env.cur_score, "train_init_energy": init_energy, "train_cum_reward": episode_reward,  "train_episode": i_episode, "total_numsteps": total_numsteps}
+    # Log metrics
+    wandb.log(wandb_log_dict)
 
     print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
     # Evaluate Agent and save to VMD
     if i_episode % 10 == 0 and do_eval is True:
         avg_reward = 0.
-        avg_energy_change = 0
+        avg_energy_change = 0.
         episodes = 10
         for _  in range(episodes):
             state = env.reset(new_output=output_pdb_test)
@@ -197,23 +201,22 @@ for i_episode in itertools.count(1):
                 next_state, reward, done, _ = env.step(action)
                 episode_reward += reward
 
-
                 state = next_state
             avg_reward += episode_reward
             avg_energy_change += env.cur_score - init_energy
+            eval_iepisode += 1
+            # Log per episode metrics
+            wandb.log({"eval_episode": eval_iepisode, "eval_init_energy": init_energy, "eval_final_energy": env.cur_score, "eval_cum_reward": episode_reward})
         avg_reward /= episodes
         avg_energy_change /= episodes
-    
+
 
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("----------------------------------------")
-        wandb_log_dict["test_delta_energy"] = avg_energy_change
-        wandb_log_dict["eval_avg_reward"] = avg_reward
+        # Log Average test metrics
+        wandb.log({"eval_delta_energy": avg_energy_change, "eval_avg_reward": avg_reward})
         
-    # Log metrics
-    wandb.log(wandb_log_dict, step=total_numsteps)
-
     # Stop when we reach the max total steps
     if total_numsteps > num_steps:
         break
