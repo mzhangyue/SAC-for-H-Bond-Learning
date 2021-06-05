@@ -5,7 +5,7 @@ import torch
 from torch.optim import Adam
 from utils import soft_update, hard_update, create_log_gaussian, logsumexp
 from custom_nn_modules.Graph_NNs import GraphConvolution, GraphAggregation, MLP
-from utilities.replay_memory import ReplayMemory
+from utilities.data_structures.replay_memory import ReplayMemory
 from agents.actor_critic_net import Actor, Critic
 
 class SAC(object):

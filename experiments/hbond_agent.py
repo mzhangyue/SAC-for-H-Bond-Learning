@@ -16,7 +16,7 @@ import torch
 from pyrosetta import *
 # Import custom modules
 from environments.SingleProtEnv import SingleProtEnv
-from utilities.replay_memory import ReplayMemory 
+from utilities.data_structures.replay_memory import ReplayMemory 
 from agents.hbond_agent_new import SAC
 
 #Inputs
@@ -40,7 +40,7 @@ hyperparameters =  {
     "start_steps": 1000, # Num steps until we start sampling
     "batch_size": 256,
     "updates_per_step": 1,
-    "num_steps": 100000, # Max total number of time steps
+    "num_steps": 10000, # Max total number of time steps
     "eval": True,
     "discount_rate": 1, 
     "tau": 0.005,
@@ -50,8 +50,8 @@ hyperparameters =  {
     "target_update_interval": 1,
     "env_name": "SingleProtEnv",
     "automatic_entropy_tuning": True,
-    "output_pdb": "./results/AA/AA_energy_reward_dynamite.pdb", # Output pdb of training episodes
-    "output_pdb_test": "./results/AA/AA_energy_reward_dynamite_test.pdb", # Output pdb of testing episodes
+    "output_pdb": "./results/AA/AA_eps_dynamite.pdb", # Output pdb of training episodes
+    "output_pdb_test": "./results/AA/AA_eps_dynamite_test.pdb", # Output pdb of testing episodes
     "Env": {
         "torsions_to_change": "all", # all, backbone, or sidechain
         "adj_mat_type": "bonded", 
@@ -155,9 +155,6 @@ for i_episode in itertools.count(1):
         
         # Transiton to next state 
         next_state, reward, done, _ = env.step(action) # Step
-        episode_steps += 1
-        total_numsteps += 1
-        episode_reward += reward
 
         # Ignore the "done" signal if it comes from hitting the time horizon.
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
@@ -171,6 +168,9 @@ for i_episode in itertools.count(1):
         if total_numsteps % 10 == 0:
             agent.save_model("SingleProtEnv")
 
+        episode_steps += 1
+        total_numsteps += 1
+        episode_reward += reward
         state = next_state
     
     # Keep track of the lowest energy conformation found

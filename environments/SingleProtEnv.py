@@ -73,8 +73,10 @@ class SingleProtEnv(gym.Env):
             self.prot.write_to_pdb("./results/temp.pdb")
             append_pdb("./results/temp.pdb", self.output_pdb)
 
+        eps=0.001
         # Perturb torsion angles by angle change to transition to next state
-        self.prot.perturb_torsion_ids(self.torsion_ids_to_change, angle_change)
+        self.prot.perturb_torsion_ids(self.torsion_ids_to_change, angle_change + \
+            eps*(np.exp(-self.prot.get_score()))*np.clip(np.random.normal(), -1, 1))
         self.prot.update_cart_coords()
         if self.adj_mat_type == "hbond_net": # Only hbonds could change
             self.update_adj_mat()
@@ -103,8 +105,8 @@ class SingleProtEnv(gym.Env):
         self.cur_score = self.prot.get_score() # E_t
         # \gamma t/T}[(\sum_{j=1}^M \dot{d}_j^2)/2-E_t
         # Reward
-        return -(self.cur_score - old_score) 
-        #return exp_term * (np.sum(angle_change ** 2)/2 - 0.03*self.cur_score)
+        #return -(self.cur_score - old_score) 
+        return exp_term * (np.sum(angle_change ** 2)/2 - 0.03*self.cur_score)
 
 
     # Checks if we are in terminal state
