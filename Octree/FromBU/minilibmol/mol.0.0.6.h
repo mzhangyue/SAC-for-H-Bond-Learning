@@ -32,7 +32,7 @@
 
 typedef unsigned int uint;
 
-#include <fftw3.h>
+// #include <fftw3.h>
 #include "mol.0.0.6/mem.h"
 #include "mol.0.0.6/myhelpers.h"
 #include "mol.0.0.6/prms.h"

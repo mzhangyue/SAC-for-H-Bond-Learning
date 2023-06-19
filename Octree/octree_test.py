@@ -13,7 +13,7 @@ if __name__ == '__main__':
         #tr = tracker.SummaryTracker()
         print("Initialization")
         #path_prefix = "/home/conradli/SAC-for-H-Bond-Learning/Octree/FromBU/oct-example/"
-        dir_prefix = "/home/conradli/SAC-for-H-Bond-Learning/data"
+        dir_prefix = "/oden/zhangm/Documents/SAC-for-H-Bond-Learning/data"
         file_prefix = "ala_dip_charmm"
         path_prefix = os.path.join(dir_prefix, "alanine_dipeptide/", file_prefix)
         param_prefix = os.path.join(dir_prefix, "params/")
